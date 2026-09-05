@@ -8,6 +8,7 @@ def generate_uuid():
 
 class PricingRule(Base):
     __tablename__ = "pricing_rules"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
@@ -20,6 +21,7 @@ class PricingRule(Base):
 
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
@@ -32,6 +34,7 @@ class SubscriptionPlan(Base):
 
 class GlobalSetting(Base):
     __tablename__ = "global_settings"
+    __table_args__ = {'extend_existing': True}
     
     key = Column(String, primary_key=True, index=True)
     value = Column(String, nullable=False)
@@ -40,6 +43,7 @@ class GlobalSetting(Base):
 
 class Category(Base):
     __tablename__ = "categories"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False, unique=True)
@@ -50,6 +54,7 @@ class Category(Base):
 
 class CustomerTier(Base):
     __tablename__ = "customer_tiers"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False, unique=True) # e.g. Bronze, Silver, Gold
@@ -60,6 +65,7 @@ class CustomerTier(Base):
 
 class DiscountPolicy(Base):
     __tablename__ = "discount_policies"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
@@ -73,6 +79,7 @@ class DiscountPolicy(Base):
 
 class ApprovalRule(Base):
     __tablename__ = "approval_rules"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
@@ -85,6 +92,7 @@ class ApprovalRule(Base):
 
 class ApprovalChain(Base):
     __tablename__ = "approval_chains"
+    __table_args__ = {'extend_existing': True}
     
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)

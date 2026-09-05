@@ -7,14 +7,7 @@ from src.core.database import Base
 def generate_uuid():
     return str(uuid.uuid4())
 
-class SubscriptionPlan(Base):
-    __tablename__ = "subscription_plans"
-
-    id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    name = Column(String, nullable=False)
-    billing_cycle = Column(String, default="monthly") # monthly, yearly
-    price = Column(Float, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+from src.models.admin import SubscriptionPlan
 
 class Subscription(Base):
     __tablename__ = "subscriptions"

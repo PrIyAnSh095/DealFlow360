@@ -135,10 +135,10 @@ export default function QuotationsPage() {
                     <td className="px-5 py-3 font-medium text-foreground">QT-{quote.id.slice(0, 8)}</td>
                     <td className="px-5 py-3 text-foreground font-semibold">{quote.customer_name || "Customer"}</td>
                     <td className="px-5 py-3 text-right font-medium text-foreground">
-                      ₹{quote.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      ₹{(quote.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-3 text-right font-medium">
-                      {quote.margin_percentage.toFixed(1)}%
+                      {(quote.margin_percentage || 0).toFixed(1)}%
                     </td>
                     <td className="px-5 py-3 text-center">
                       <span className={cn(
@@ -159,47 +159,7 @@ export default function QuotationsPage() {
                       </Link>
                     </td>
                   </tr>
-<<<<<<< Updated upstream
-                ) : (
-                  quotations.map((quote) => {
-                    const isHighRisk = quote.risk_score === 'HIGH';
-                    const isMedRisk = quote.risk_score === 'MEDIUM';
-                    
-                    return (
-                      <tr key={quote.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-5 py-3 font-medium text-foreground">QT-{quote.id.slice(0, 6)}</td>
-                        <td className="px-5 py-3 text-foreground-muted">Deal {quote.deal_id.slice(0, 6)}</td>
-                        <td className="px-5 py-3 text-right font-medium text-foreground">
-                          ₹{(quote.total / 1000).toFixed(1)}k
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium">
-                          {Number(quote.margin_percentage).toFixed(1)}%
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border",
-                            isHighRisk ? "bg-danger/10 text-danger border-danger/20" : 
-                            isMedRisk ? "bg-warning/10 text-warning border-warning/20" : 
-                            "bg-success/10 text-success border-success/20"
-                          )}>
-                            {quote.risk_score === 'HIGH' ? 'High' : quote.risk_score === 'MEDIUM' ? 'Med' : 'Low'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-foreground-muted capitalize">
-                          {quote.status}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <Link href={`/deals/${quote.deal_id}`} className="text-primary font-medium hover:underline">
-                            Open
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-=======
                 ))}
->>>>>>> Stashed changes
               </tbody>
             </table>
           </div>

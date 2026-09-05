@@ -1,51 +1,44 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 from src.core.database import get_db
+from src.core.security import verify_password, create_access_token, get_current_user
 from src.models.user import User
-from src.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from src.core.security import get_password_hash, verify_password, create_access_token
-from src.api.deps import get_current_user
 
 router = APIRouter()
 
-@router.post("/signup", response_model=Token)
-def signup(user_in: UserCreate, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_in.email).first()
-    if user:
-        raise HTTPException(
-            status_code=400,
-            detail="The user with this email already exists in the system",
-        )
-    
-    hashed_password = get_password_hash(user_in.password)
-    new_user = User(
-        email=user_in.email,
-        hashed_password=hashed_password,
-        name=user_in.name,
-        role=user_in.role
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    access_token = create_access_token(data={"sub": new_user.id})
-    return {"access_token": access_token, "token_type": "bearer", "user": new_user}
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
 
-@router.post("/login", response_model=Token)
-def login(user_in: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == user_in.email).first()
-    if not user or not verify_password(user_in.password, user.hashed_password):
+@router.post("/login", response_model=TokenResponse)
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == request.email).first()
+    if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
-        
-    access_token = create_access_token(data={"sub": user.id})
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+    
+    access_token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role, "name": user.name})
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role
+        }
+    }
 
-
-@router.get("/me", response_model=UserResponse)
-def get_me(current_user: User = Depends(get_current_user)):
+@router.get("/me")
+def get_me(current_user: dict = Depends(get_current_user)):
     return current_user

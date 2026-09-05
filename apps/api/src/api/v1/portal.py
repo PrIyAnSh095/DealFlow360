@@ -1,109 +1,112 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from pydantic import BaseModel
+from typing import List, Dict, Optional
 from src.core.database import get_db
 from src.models.quotation import Quotation, QuoteLine
-from src.models.deal import Deal
 from src.models.portal import QuoteMessage
-from src.schemas.portal import PublicQuotationResponse, QuoteMessageResponse, QuoteMessageCreate
+from src.models.deal import Deal
+from src.models.product import Product
+from src.services.negotiation_service import add_customer_message, process_customer_counter_offer
 
 router = APIRouter()
 
-def get_public_quote_or_404(public_id: str, db: Session) -> tuple[Quotation, Deal]:
-    quote = db.query(Quotation).filter(Quotation.id == public_id).first()
-    
-    # Fallback for MVP: if public_id is actually a deal_id, find the latest quote for that deal
-    if not quote:
-        quote = db.query(Quotation).filter(Quotation.deal_id == public_id).order_by(Quotation.created_at.desc()).first()
-        
-    if not quote:
-        raise HTTPException(status_code=404, detail="Quotation not found")
-        
-    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
-    if not deal:
-        raise HTTPException(status_code=404, detail="Associated deal not found")
-        
-    return quote, deal
+class MessageInput(BaseModel):
+    content: str
 
-@router.get("/quotes/{public_id}", response_model=PublicQuotationResponse)
-def get_public_quote(public_id: str, db: Session = Depends(get_db)):
-    quote, deal = get_public_quote_or_404(public_id, db)
-    
-    # We do NOT include cost, margin, or risk_score here.
-    resp = PublicQuotationResponse(
-        id=quote.id,
-        status=quote.status,
-        subtotal=quote.subtotal,
-        total_discount=quote.total_discount,
-        total=quote.total,
-        deal_name=f"Quote for {deal.customer_name}",
-        customer_name=deal.customer_name,
-        lines=[]
+class CounterOfferInput(BaseModel):
+    line_discounts: Dict[str, float] # {quote_line_id: discount_pct}
+    message: Optional[str] = None
+
+@router.get("/{public_id}")
+def get_customer_portal_quote(public_id: str, db: Session = Depends(get_db)):
+    # public_id is mapped to quotation_id
+    q = db.query(Quotation).filter(Quotation.id == public_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quote not found")
+
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+
+    lines = []
+    for line in q.lines:
+        p = db.query(Product).filter(Product.id == line.product_id).first()
+        lines.append({
+            "id": line.id,
+            "product_name": p.name if p else "Product",
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "discount_percent": line.discount_percent,
+            "line_total": round(line.quantity * line.unit_price * (1 - line.discount_percent / 100.0), 2)
+        })
+
+    messages = db.query(QuoteMessage).filter(QuoteMessage.quotation_id == public_id).all()
+    msg_list = []
+    for m in messages:
+        msg_list.append({
+            "id": m.id,
+            "sender_type": m.sender_type,
+            "content": m.content,
+            "created_at": m.created_at
+        })
+
+    # HIDE INTERNAL COSTS AND MARGINS FOR CUSTOMER RBAC ISOLATION
+    return {
+        "quotation_id": q.id,
+        "customer_name": deal.customer_name if deal else "Customer",
+        "status": q.status,
+        "subtotal": q.subtotal,
+        "total_discount": q.total_discount,
+        "total": q.total,
+        "lines": lines,
+        "messages": msg_list,
+        "created_at": q.created_at
+    }
+
+@router.post("/{public_id}/message")
+def post_customer_message(public_id: str, payload: MessageInput, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == public_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quote not found")
+        
+    msg = add_customer_message(db, public_id, payload.content, sender_type="CUSTOMER")
+    return {
+        "id": msg.id,
+        "sender_type": msg.sender_type,
+        "content": msg.content,
+        "created_at": msg.created_at
+    }
+
+@router.post("/{public_id}/counter")
+def post_customer_counter(public_id: str, payload: CounterOfferInput, db: Session = Depends(get_db)):
+    updated_q = process_customer_counter_offer(
+        db=db,
+        quotation_id=public_id,
+        line_discounts=payload.line_discounts,
+        message=payload.message
     )
-    
-    # Attach lines safely
-    lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id).all()
-    # We can use the QuoteLine schema which includes product details
-    # The frontend needs to know product names
-    for line in lines:
-        from src.models.product import Product
-        product = db.query(Product).filter(Product.id == line.product_id).first()
-        from src.schemas.portal import PublicQuoteLineResponse
-        
-        resp.lines.append(PublicQuoteLineResponse(
-            id=line.id,
-            product_id=line.product_id,
-            product_name=product.name if product else "Unknown Product",
-            quantity=line.quantity,
-            unit_price=line.unit_price,
-            discount_percent=line.discount_percent,
-            total_price=(line.unit_price * line.quantity) * (1 - (line.discount_percent / 100))
-        ))
-        
-    return resp
+    return {
+        "quotation_id": updated_q.id,
+        "status": updated_q.status,
+        "total": updated_q.total,
+        "message": "Counter offer submitted successfully. Quote sent for re-evaluation."
+    }
 
-@router.get("/quotes/{public_id}/messages", response_model=List[QuoteMessageResponse])
-def get_quote_messages(public_id: str, db: Session = Depends(get_db)):
-    quote, deal = get_public_quote_or_404(public_id, db)
-    messages = db.query(QuoteMessage).filter(QuoteMessage.quotation_id == quote.id).order_by(QuoteMessage.created_at.asc()).all()
-    return messages
+@router.post("/{public_id}/accept")
+def accept_customer_terms(public_id: str, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == public_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quote not found")
 
-@router.post("/quotes/{public_id}/messages", response_model=QuoteMessageResponse)
-def post_quote_message(public_id: str, payload: QuoteMessageCreate, db: Session = Depends(get_db)):
-    quote, deal = get_public_quote_or_404(public_id, db)
-    
-    msg = QuoteMessage(
-        quotation_id=quote.id,
-        content=payload.content,
-        sender_type=payload.sender_type
-    )
-    db.add(msg)
-    
-    # Change status to NEGOTIATION if the customer comments on a PENDING or APPROVED quote
-    if payload.sender_type == "CUSTOMER" and quote.status in ["APPROVED", "SENT"]:
-        quote.status = "NEGOTIATION"
-        
+    q.status = "ACCEPTED"
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+    if deal:
+        deal.status = "won"
+
+    add_customer_message(db, public_id, "Customer accepted quote terms.", sender_type="CUSTOMER")
     db.commit()
-    db.refresh(msg)
-    return msg
 
-@router.post("/quotes/{public_id}/confirm")
-def confirm_quote(public_id: str, db: Session = Depends(get_db)):
-    quote, deal = get_public_quote_or_404(public_id, db)
-    
-    if quote.status not in ["APPROVED", "SENT", "NEGOTIATION"]:
-        raise HTTPException(status_code=400, detail="Quote cannot be confirmed in its current state")
-        
-    quote.status = "ACCEPTED"
-    deal.status = "won"
-    
-    # Log the action automatically as a message
-    msg = QuoteMessage(
-        quotation_id=quote.id,
-        content="Customer formally accepted the quotation.",
-        sender_type="SYSTEM"
-    )
-    db.add(msg)
-    
-    db.commit()
-    return {"message": "Quote accepted successfully"}
+    return {
+        "quotation_id": q.id,
+        "status": q.status,
+        "message": "Quotation accepted by customer"
+    }

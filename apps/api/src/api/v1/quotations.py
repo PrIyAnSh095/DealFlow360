@@ -1,98 +1,107 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 from src.core.database import get_db
-from src.api.deps import get_current_user
-from src.models.user import User
-from src.models.product import Product
 from src.models.quotation import Quotation, QuoteLine
-from src.schemas.quotation import QuoteRecalculateRequest, QuoteRecalculateResponse, QuoteLineResponse, ProductResponse
+from src.models.product import Product
+from src.models.deal import Deal
+from src.services.pricing_service import recalculate_quotation
+from src.services.approval_service import submit_quote_for_approval
 
 router = APIRouter()
 
-# Discount ceilings by category (as per FR-05 logic)
-CATEGORY_DISCOUNT_LIMITS = {
-    "hardware": 15.0,
-    "service": 10.0,
-    "software": 20.0,
-}
+class QuoteLineInput(BaseModel):
+    product_id: str
+    quantity: int = 1
+    discount_percent: float = 0.0
 
-@router.get("/products", response_model=List[ProductResponse])
-def get_products(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Product).filter(Product.active == True).all()
+class CreateQuoteInput(BaseModel):
+    deal_id: str
+    lines: List[QuoteLineInput]
 
-@router.post("/{quotation_id}/recalculate", response_model=QuoteRecalculateResponse)
-def recalculate_quotation(
-    quotation_id: str, 
-    request: QuoteRecalculateRequest, 
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    subtotal = 0.0
-    total_discount = 0.0
-    estimated_cost = 0.0
-    
-    explanations = []
-    requires_approval = False
-    
-    lines_response = []
-    
-    for line_in in request.lines:
-        product = db.query(Product).filter(Product.id == line_in.product_id).first()
-        if not product:
-            continue
-            
-        # Financials for this line
-        line_gross = product.sales_price * line_in.quantity
-        line_discount_amt = line_gross * (line_in.discount_percent / 100.0)
-        line_net = line_gross - line_discount_amt
-        line_cost = product.cost * line_in.quantity
+@router.get("")
+def list_quotations(db: Session = Depends(get_db)):
+    quotes = db.query(Quotation).all()
+    results = []
+    for q in quotes:
+        deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+        results.append({
+            "id": q.id,
+            "deal_id": q.deal_id,
+            "customer_name": deal.customer_name if deal else "Unknown",
+            "status": q.status,
+            "subtotal": q.subtotal,
+            "total_discount": q.total_discount,
+            "total": q.total,
+            "margin_percentage": q.margin_percentage,
+            "risk_score": q.risk_score,
+            "requires_approval": q.requires_approval,
+            "created_at": q.created_at
+        })
+    return results
+
+@router.get("/{quotation_id}")
+def get_quotation(quotation_id: str, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
         
-        # Risk assessment for this line
-        limit = CATEGORY_DISCOUNT_LIMITS.get(product.category.lower(), 10.0)
-        if line_in.discount_percent > limit:
-            requires_approval = True
-            explanations.append(f"{product.name} ({product.category}) discount of {line_in.discount_percent}% exceeds limit of {limit}%")
-            
-        line_margin = 0
-        if line_net > 0:
-            line_margin = ((line_net - line_cost) / line_net) * 100.0
-            
-        # Accumulate
-        subtotal += line_gross
-        total_discount += line_discount_amt
-        estimated_cost += line_cost
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+    lines_data = []
+    for line in q.lines:
+        p = db.query(Product).filter(Product.id == line.product_id).first()
+        lines_data.append({
+            "id": line.id,
+            "product_id": line.product_id,
+            "product_name": p.name if p else "Product",
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "discount_percent": line.discount_percent
+        })
+
+    return {
+        "id": q.id,
+        "deal_id": q.deal_id,
+        "customer_name": deal.customer_name if deal else "Unknown",
+        "status": q.status,
+        "subtotal": q.subtotal,
+        "total_discount": q.total_discount,
+        "total": q.total,
+        "margin_percentage": q.margin_percentage,
+        "risk_score": q.risk_score,
+        "requires_approval": q.requires_approval,
+        "lines": lines_data,
+        "created_at": q.created_at
+    }
+
+@router.post("/{quotation_id}/recalculate")
+def recalculate_quote_endpoint(quotation_id: str, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+    updated_q = recalculate_quotation(db, q)
+    return {
+        "id": updated_q.id,
+        "subtotal": updated_q.subtotal,
+        "total_discount": updated_q.total_discount,
+        "total": updated_q.total,
+        "margin_percentage": updated_q.margin_percentage,
+        "risk_score": updated_q.risk_score,
+        "requires_approval": updated_q.requires_approval
+    }
+
+@router.post("/{quotation_id}/submit")
+def submit_quote(quotation_id: str, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
         
-        lines_response.append(QuoteLineResponse(
-            product_id=product.id,
-            product_name=product.name,
-            quantity=line_in.quantity,
-            unit_price=product.sales_price,
-            discount_percent=line_in.discount_percent,
-            line_total=line_net,
-            line_margin_percent=round(line_margin, 2)
-        ))
-        
-    # Global metrics
-    total = subtotal - total_discount
-    margin_percentage = 0.0
-    if total > 0:
-        margin_percentage = ((total - estimated_cost) / total) * 100.0
-        
-    risk_score = "LOW"
-    if requires_approval:
-        risk_score = "HIGH"
-    elif margin_percentage < 20.0:
-        risk_score = "MEDIUM"
-        
-    return QuoteRecalculateResponse(
-        subtotal=round(subtotal, 2),
-        total_discount=round(total_discount, 2),
-        total=round(total, 2),
-        estimated_cost=round(estimated_cost, 2),
-        margin_percentage=round(margin_percentage, 2),
-        risk_score=risk_score,
-        requires_approval=requires_approval,
-        explanations=explanations,
-        lines=lines_response
-    )
+    recalculate_quotation(db, q)
+    if q.requires_approval:
+        app_req = submit_quote_for_approval(db, quotation_id, requester_id="u-sales")
+        return {"status": "SUBMITTED_FOR_APPROVAL", "approval_request_id": app_req.id, "risk_score": q.risk_score}
+    else:
+        q.status = "APPROVED"
+        db.commit()
+        return {"status": "APPROVED", "message": "Quotation approved automatically (Low Risk)"}

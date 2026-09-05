@@ -1,75 +1,112 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 from src.core.database import get_db
-from src.api.deps import get_current_user
-from src.models.user import User
 from src.models.approval import ApprovalRequest, ApprovalAuditLog
-from src.models.quotation import Quotation
+from src.models.quotation import Quotation, QuoteLine
 from src.models.deal import Deal
-from src.schemas.approval import ApprovalActionRequest, ApprovalRequestResponse
+from src.models.product import Product
+from src.services.approval_service import process_approval_decision
 
 router = APIRouter()
 
-@router.get("", response_model=List[ApprovalRequestResponse])
-def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # For now, we return all approvals. In a real app we'd filter by role.
-    reqs = db.query(ApprovalRequest).order_by(ApprovalRequest.created_at.desc()).all()
-    
-    response_list = []
-    for req in reqs:
-        # Fetch joined context to make frontend rendering easy
-        quote = db.query(Quotation).filter(Quotation.id == req.quotation_id).first()
-        deal = None
-        if quote:
-            deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
-            
-        resp = ApprovalRequestResponse.model_validate(req)
-        if deal and quote:
-            resp.deal_name = deal.name if hasattr(deal, 'name') else f"Deal {deal.id[:8]}"
-            resp.customer_name = deal.customer_name
-            resp.quote_total = quote.total
-            resp.quote_margin = quote.margin_percentage
-            
-        response_list.append(resp)
-        
-    return response_list
+class ApprovalDecisionInput(BaseModel):
+    action: str # APPROVED, REJECTED, RETURNED
+    reason: Optional[str] = None
+    actor_id: Optional[str] = "u-mgr-1"
 
-def perform_approval_action(req_id: str, action: str, next_status: str, payload: ApprovalActionRequest, db: Session, user: User):
-    req = db.query(ApprovalRequest).filter(ApprovalRequest.id == req_id).first()
-    if not req:
+@router.get("")
+def list_approvals(db: Session = Depends(get_db)):
+    requests = db.query(ApprovalRequest).all()
+    results = []
+    for r in requests:
+        q = db.query(Quotation).filter(Quotation.id == r.quotation_id).first()
+        deal = db.query(Deal).filter(Deal.id == q.deal_id).first() if q else None
+        results.append({
+            "id": r.id,
+            "quotation_id": r.quotation_id,
+            "deal_id": q.deal_id if q else None,
+            "customer_name": deal.customer_name if deal else "Unknown",
+            "deal_value": q.total if q else 0.0,
+            "risk_score": q.risk_score if q else "LOW",
+            "margin_percentage": q.margin_percentage if q else 0.0,
+            "status": r.status,
+            "created_at": r.created_at
+        })
+    return results
+
+@router.get("/{approval_id}")
+def get_approval_detail(approval_id: str, db: Session = Depends(get_db)):
+    r = db.query(ApprovalRequest).filter(ApprovalRequest.id == approval_id).first()
+    if not r:
         raise HTTPException(status_code=404, detail="Approval request not found")
         
-    if req.status != "PENDING":
-        raise HTTPException(status_code=400, detail=f"Cannot {action} a request in {req.status} state")
-        
-    # Update request
-    req.status = next_status
+    q = db.query(Quotation).filter(Quotation.id == r.quotation_id).first()
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first() if q else None
     
-    # Update quotation
-    quote = db.query(Quotation).filter(Quotation.id == req.quotation_id).first()
-    if quote:
-        quote.status = next_status if next_status != "RETURNED" else "DRAFT"
-        
-    # Log audit trail
-    log = ApprovalAuditLog(
-        approval_request_id=req.id,
-        actor_id=user.id,
-        action=action.upper(),
+    lines = []
+    if q:
+        for l in q.lines:
+            p = db.query(Product).filter(Product.id == l.product_id).first()
+            lines.append({
+                "id": l.id,
+                "product_name": p.name if p else "Product",
+                "quantity": l.quantity,
+                "unit_price": l.unit_price,
+                "discount_percent": l.discount_percent
+            })
+
+    logs = []
+    for log in r.logs:
+        logs.append({
+            "id": log.id,
+            "actor_id": log.actor_id,
+            "action": log.action,
+            "reason": log.reason,
+            "created_at": log.created_at
+        })
+
+    return {
+        "id": r.id,
+        "quotation_id": r.quotation_id,
+        "customer_name": deal.customer_name if deal else "Unknown",
+        "deal_value": q.total if q else 0.0,
+        "subtotal": q.subtotal if q else 0.0,
+        "total_discount": q.total_discount if q else 0.0,
+        "margin_percentage": q.margin_percentage if q else 0.0,
+        "risk_score": q.risk_score if q else "LOW",
+        "status": r.status,
+        "lines": lines,
+        "logs": logs,
+        "created_at": r.created_at
+    }
+
+@router.post("/{approval_id}/action")
+def process_approval_action(approval_id: str, payload: ApprovalDecisionInput, db: Session = Depends(get_db)):
+    result = process_approval_decision(
+        db=db,
+        approval_request_id=approval_id,
+        actor_id=payload.actor_id or "u-mgr-1",
+        action=payload.action,
         reason=payload.reason
     )
-    db.add(log)
-    db.commit()
-    return {"message": "Success"}
+    return {
+        "id": result.id,
+        "status": result.status,
+        "message": f"Approval request updated to {result.status}"
+    }
 
-@router.post("/{id}/approve")
-def approve_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return perform_approval_action(id, "approve", "APPROVED", payload, db, current_user)
+@router.post("/{approval_id}/approve")
+def approve_request(approval_id: str, payload: Optional[ApprovalDecisionInput] = None, db: Session = Depends(get_db)):
+    reason = payload.reason if payload else "Approved"
+    actor_id = payload.actor_id if payload else "u-mgr-1"
+    result = process_approval_decision(db, approval_id, actor_id, "APPROVED", reason)
+    return {"id": result.id, "status": result.status}
 
-@router.post("/{id}/reject")
-def reject_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return perform_approval_action(id, "reject", "REJECTED", payload, db, current_user)
-
-@router.post("/{id}/return")
-def return_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return perform_approval_action(id, "return", "RETURNED", payload, db, current_user)
+@router.post("/{approval_id}/reject")
+def reject_request(approval_id: str, payload: Optional[ApprovalDecisionInput] = None, db: Session = Depends(get_db)):
+    reason = payload.reason if payload else "Rejected"
+    actor_id = payload.actor_id if payload else "u-mgr-1"
+    result = process_approval_decision(db, approval_id, actor_id, "REJECTED", reason)
+    return {"id": result.id, "status": result.status}

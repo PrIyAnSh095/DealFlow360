@@ -6,6 +6,7 @@ from src.core.database import SessionLocal, Base, engine
 from src.models.product import Product
 from src.models.deal import Deal
 from src.models.user import User
+from src.models.customer import Customer
 from src.models.quotation import Quotation, QuoteLine
 from src.models.approval import ApprovalRequest
 from src.models.operations import Warehouse, Stock, Order
@@ -41,13 +42,24 @@ def seed_db():
         ]
         db.add_all(products)
         
+    if db.query(Customer).count() == 0:
+        print("Seeding mock customers...")
+        customers = [
+            Customer(id="c-1", name="John Doe", email="john@acme.com", company="Acme Corp"),
+            Customer(id="c-2", name="Jane Smith", email="jane@globex.com", company="Globex Inc"),
+            Customer(id="c-3", name="Bob Jones", email="bob@soylent.com", company="Soylent Corp"),
+            Customer(id="c-4", name="Bruce Wayne", email="bruce@wayne.com", company="Wayne Enterprises"),
+        ]
+        db.add_all(customers)
+        db.commit()
+
     # 2. Add some mock deals if empty
     if db.query(Deal).count() == 0:
         print("Seeding mock deals...")
         deals = [
-            Deal(id="d-1", customer_name="Acme Corp", value=22000.0, status="approval", risk="high"),
-            Deal(id="d-2", customer_name="Globex Inc", value=15000.0, status="review", risk="low"),
-            Deal(id="d-3", customer_name="Soylent Corp", value=5000.0, status="draft", risk="low"),
+            Deal(id="d-1", customer_id="c-1", value=22000.0, status="approval", risk="high"),
+            Deal(id="d-2", customer_id="c-2", value=15000.0, status="review", risk="low"),
+            Deal(id="d-3", customer_id="c-3", value=5000.0, status="draft", risk="low"),
         ]
         db.add_all(deals)
         
@@ -108,7 +120,7 @@ def seed_db():
         # For Phase 8, let's create a NEW deal, quote, and order to test fulfillment directly!
         
         # Mock Deal for Operations
-        d_ops = Deal(id="d-ops", customer_name="Wayne Enterprises", value=50000.0, status="won", risk="low")
+        d_ops = Deal(id="d-ops", customer_id="c-4", value=50000.0, status="won", risk="low")
         db.add(d_ops)
         
         q_ops = Quotation(

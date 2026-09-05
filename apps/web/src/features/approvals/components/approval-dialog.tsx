@@ -59,9 +59,9 @@ export function ApprovalDialog({ approval, onClose }: ApprovalDialogProps) {
             </div>
             <div className="bg-background border border-border p-3 rounded-md">
               <div className="text-[11px] text-foreground-muted font-medium uppercase tracking-wider mb-1">Blended Margin</div>
-              <div className={`text-lg font-bold ${approval.quote_margin && approval.quote_margin < 20 ? 'text-danger' : 'text-success'}`}>
-                {approval.quote_margin?.toFixed(1)}%
-              </div>
+              <span className={`font-semibold ${Number(approval.quote_margin) < 20 ? 'text-danger' : 'text-success'}`}>
+                {Number(approval.quote_margin).toFixed(1)}%
+              </span>
             </div>
           </div>
 

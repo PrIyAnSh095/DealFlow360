@@ -4,11 +4,13 @@ import { useState } from "react";
 import { useDeals } from "@/features/deals/hooks";
 import { KanbanBoard } from "@/features/deals/components/kanban-board";
 import { DealList } from "@/features/deals/components/deal-list";
+import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
 import { LayoutGrid, List, Plus, Search, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function DealsPage() {
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { data: deals, isLoading, error } = useDeals();
 
   if (error) {
@@ -69,7 +71,10 @@ export default function DealsPage() {
             </button>
           </div>
           
-          <button className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1">
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1"
+          >
             <Plus className="w-4 h-4 sm:mr-1.5" />
             <span className="hidden sm:inline">New Deal</span>
           </button>
@@ -87,6 +92,8 @@ export default function DealsPage() {
           <DealList deals={deals || []} />
         )}
       </div>
+
+      <CreateDealDialog isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.models.user import User
-from src.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from src.schemas.user import UserCreate, UserLogin, UserResponse, Token, UserUpdate
 from src.core.security import get_password_hash, verify_password, create_access_token
 from src.api.deps import get_current_user
 
@@ -48,4 +48,18 @@ def login(user_in: UserLogin, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@router.patch("/me", response_model=UserResponse)
+def update_me(
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    update_data = user_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(current_user, field, value)
+        
+    db.commit()
+    db.refresh(current_user)
     return current_user

@@ -17,42 +17,38 @@ import {
 
 export const navigation = [
   {
-    name: "Overview",
+    name: "Workspace",
     items: [
-      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    ],
-  },
-  {
-    name: "Sales",
-    items: [
-      { name: "Deals", href: "/deals", icon: Briefcase },
-      { name: "Quotations", href: "/quotations", icon: FileText },
-      { name: "Approvals", href: "/approvals", icon: CheckSquare },
+      { name: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["sales", "manager", "finance", "admin"] },
+      { name: "Deals", href: "/deals", icon: Briefcase, roles: ["sales", "manager", "admin"] },
+      { name: "Pipeline", href: "/pipeline", icon: Briefcase, roles: ["sales", "manager", "admin"] },
+      { name: "Quotations", href: "/quotations", icon: FileText, roles: ["sales", "manager", "admin"] },
+      { name: "Approvals", href: "/approvals", icon: CheckSquare, roles: ["manager", "finance", "admin"] },
     ],
   },
   {
     name: "Operations",
     items: [
-      { name: "Fulfillment", href: "/operations", icon: Package },
-      { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw },
-      { name: "Invoices", href: "/invoices", icon: Receipt },
+      { name: "Fulfillment", href: "/operations", icon: Package, roles: ["sales", "finance", "admin"] },
+      { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw, roles: ["sales", "finance", "admin"] },
+      { name: "Invoices", href: "/invoices", icon: Receipt, roles: ["sales", "finance", "admin"] },
     ],
   },
   {
     name: "Intelligence",
     items: [
-      { name: "Deal Health", href: "/health", icon: HeartPulse },
-      { name: "Analytics", href: "/analytics", icon: BarChart },
+      { name: "Deal Health", href: "/health", icon: HeartPulse, roles: ["sales", "manager", "admin"] },
+      { name: "Analytics", href: "/analytics", icon: BarChart, roles: ["manager", "admin"] },
     ],
   },
   {
     name: "Administration",
     items: [
-      { name: "Products", href: "/products", icon: Box },
-      { name: "Pricing Rules", href: "/pricing-rules", icon: Settings2 },
-      { name: "Warehouses", href: "/warehouses", icon: Warehouse },
-      { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard },
-      { name: "Settings", href: "/settings", icon: Settings },
+      { name: "Products", href: "/products", icon: Box, roles: ["admin"] },
+      { name: "Pricing Rules", href: "/pricing-rules", icon: Settings2, roles: ["manager", "admin"] },
+      { name: "Warehouses", href: "/warehouses", icon: Warehouse, roles: ["admin"] },
+      { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard, roles: ["admin"] },
+      { name: "Settings", href: "/settings", icon: Settings, roles: ["sales", "manager", "finance", "customer", "admin"] },
     ],
   },
 ];

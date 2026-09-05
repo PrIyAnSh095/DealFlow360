@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.v1 import auth, quotations
+from src.api.v1 import auth, quotations, approvals
 from src.core.database import engine, Base
 
 # Import all models for SQLAlchemy to register them
-from src.models import user, product, deal, quotation
+from src.models import user, product, deal, quotation, approval
 
 # Create DB tables
 Base.metadata.create_all(bind=engine)
@@ -22,6 +22,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["quotations"])
+app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
 
 @app.get("/health")
 def health_check():

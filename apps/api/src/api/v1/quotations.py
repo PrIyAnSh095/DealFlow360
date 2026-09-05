@@ -7,7 +7,7 @@ from src.models.user import User
 from src.models.product import Product
 from src.models.quotation import Quotation, QuoteLine
 from src.models.deal import Deal
-from src.models.approval import ApprovalAuditLog
+from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.schemas.quotation import QuoteRecalculateRequest, QuoteRecalculateResponse, QuoteLineResponse, ProductResponse, QuotationCreate, QuotationResponse
 from decimal import Decimal
 
@@ -191,12 +191,21 @@ def submit_quotation(
     if quotation.requires_approval:
         deal.status = "approval"
         
+        # Create approval request
+        approval_req = ApprovalRequest(
+            quotation_id=quotation.id,
+            requester_id=current_user.id,
+            status="PENDING"
+        )
+        db.add(approval_req)
+        db.flush() # flush to get the ID
+        
         # Create approval request audit
         audit = ApprovalAuditLog(
-            deal_id=deal.id,
-            action="submit",
-            role="sales",
-            notes="Submitted for approval by Sales Rep"
+            approval_request_id=approval_req.id,
+            actor_id=current_user.id,
+            action="SUBMITTED",
+            reason="Submitted for approval by Sales Rep"
         )
         db.add(audit)
     else:

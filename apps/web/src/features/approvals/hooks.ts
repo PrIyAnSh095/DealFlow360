@@ -30,3 +30,14 @@ export const useRejectRequest = () => {
     },
   });
 };
+
+export const useReturnRequest = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ApprovalActionRequest }) =>
+      approvalsApi.returnQuote(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+    },
+  });
+};

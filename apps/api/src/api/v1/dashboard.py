@@ -70,10 +70,6 @@ def get_recent_activities(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Fetch recent audit logs or deal changes.
-    # For now, we will query ApprovalAuditLog and format them.
-    # Since we need generic activities, we'll construct them from deals created and approvals.
-    
     activities = []
     
     # Get last 5 deals created
@@ -89,4 +85,31 @@ def get_recent_activities(
             color_hint="primary"
         ))
         
-    return activities[:5]
+    # Get last 5 approval audit logs
+    recent_approvals = db.query(ApprovalAuditLog).order_by(ApprovalAuditLog.created_at.desc()).limit(5).all()
+    for log in recent_approvals:
+        user = db.query(User).filter(User.id == log.actor_id).first()
+        actor_name = user.name if user else "System"
+        initials = "".join([n[0] for n in actor_name.split()[:2]]) if user else "SYS"
+        
+        color_hint = "primary"
+        if log.action == "APPROVED":
+            color_hint = "success"
+        elif log.action == "REJECTED":
+            color_hint = "danger"
+        elif log.action == "RETURNED":
+            color_hint = "warning"
+            
+        activities.append(ActivityLog(
+            id=f"audit-{log.id}",
+            action_by=actor_name,
+            initials=initials,
+            action_type=f"{log.action.lower()} quotation",
+            target_name=f"Req {log.approval_request_id[:8]}",
+            timestamp=log.created_at.isoformat(),
+            color_hint=color_hint
+        ))
+        
+    # Sort activities by timestamp descending
+    activities.sort(key=lambda x: x.timestamp, reverse=True)
+    return activities[:10]

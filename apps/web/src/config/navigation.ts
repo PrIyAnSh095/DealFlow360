@@ -21,7 +21,7 @@ export const navigation = [
     items: [
       { name: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["sales", "manager", "finance", "admin"] },
       { name: "Deals", href: "/deals", icon: Briefcase, roles: ["sales", "manager", "admin"] },
-      { name: "Pipeline", href: "/pipeline", icon: Briefcase, roles: ["sales", "manager", "admin"] },
+      { name: "Pipeline", href: "/pipeline", icon: Briefcase, roles: ["manager", "admin"] },
       { name: "Quotations", href: "/quotations", icon: FileText, roles: ["sales", "manager", "admin"] },
       { name: "Approvals", href: "/approvals", icon: CheckSquare, roles: ["manager", "finance", "admin"] },
     ],
@@ -30,8 +30,8 @@ export const navigation = [
     name: "Operations",
     items: [
       { name: "Fulfillment", href: "/operations", icon: Package, roles: ["sales", "finance", "admin"] },
-      { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw, roles: ["sales", "finance", "admin"] },
-      { name: "Invoices", href: "/invoices", icon: Receipt, roles: ["sales", "finance", "admin"] },
+      { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw, roles: ["finance", "admin"] },
+      { name: "Invoices", href: "/invoices", icon: Receipt, roles: ["finance", "admin"] },
     ],
   },
   {

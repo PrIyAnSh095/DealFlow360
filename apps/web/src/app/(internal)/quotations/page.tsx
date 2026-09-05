@@ -96,7 +96,7 @@ export default function QuotationsPage() {
                           ₹{(quote.total / 1000).toFixed(1)}k
                         </td>
                         <td className="px-5 py-3 text-right font-medium">
-                          {quote.margin_percentage.toFixed(1)}%
+                          {Number(quote.margin_percentage).toFixed(1)}%
                         </td>
                         <td className="px-5 py-3 text-center">
                           <span className={cn(

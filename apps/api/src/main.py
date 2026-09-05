@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.v1 import auth, quotations, approvals, portal, operations, deals, customers, dashboard, health, search
+from src.api.v1 import auth, quotations, approvals, portal, operations, deals, customers, dashboard, health, search, intelligence, billing, analytics, admin
 from src.core.database import engine, Base
 
 # Import all models for SQLAlchemy to register them
-from src.models import user, product, customer, deal, quotation, approval, portal as portal_model, operations as operations_model
+from src.models import user, product, customer, deal, quotation, approval, portal as portal_model, operations as operations_model, billing as billing_model, admin as admin_model
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="DealFlow360 API", version="1.0.0")
 
@@ -27,6 +29,10 @@ app.include_router(customers.router, prefix="/api/v1/customers", tags=["customer
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(health.router, prefix="/api/v1/health", tags=["health"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
+app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 
 @app.get("/health")
 def health_check():

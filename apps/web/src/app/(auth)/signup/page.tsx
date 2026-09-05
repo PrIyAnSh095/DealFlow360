@@ -9,7 +9,7 @@ import { useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
 
 export default function SignupPage() {
-  const { login } = useAuth(); // For demo purposes, we will mock signup as login
+  const { signup } = useAuth();
   const [error, setError] = useState<string | null>(null);
   
   const {
@@ -26,10 +26,9 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupCredentials) => {
     try {
       setError(null);
-      // In a real app, this calls signup api, then login api
-      await login({ email: data.email, password: data.password });
+      await signup(data);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create account. Please try again.");
+      setError(err?.response?.data?.detail || "Failed to create account. Please try again.");
     }
   };
 

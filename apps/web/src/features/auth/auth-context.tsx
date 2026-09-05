@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { User, LoginCredentials } from "./types";
+import { User, LoginCredentials, SignupCredentials } from "./types";
 import { authApi } from "./api";
 import { useRouter } from "next/navigation";
 
@@ -10,6 +10,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
+  signup: (credentials: SignupCredentials) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -35,6 +36,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const signupMutation = useMutation({
+    mutationFn: authApi.signup,
+    onSuccess: (data) => {
+      queryClient.setQueryData(["auth", "me"], data);
+      router.push("/dashboard");
+    },
+  });
+
   const logoutMutation = useMutation({
     mutationFn: authApi.logout,
     onSuccess: () => {
@@ -47,6 +56,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loginMutation.mutateAsync(credentials);
   };
 
+  const signup = async (credentials: SignupCredentials) => {
+    await signupMutation.mutateAsync(credentials);
+  };
+
   const logout = async () => {
     await logoutMutation.mutateAsync();
   };
@@ -57,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: user ?? null,
         isLoading,
         login,
+        signup,
         logout,
       }}
     >

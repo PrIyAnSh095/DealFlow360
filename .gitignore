@@ -35,3 +35,10 @@ dist/
 .idea/
 .eslintcache
 *.tsbuildinfo
+
+# Python & Backend
+venv/
+__pycache__/
+*.pyc
+*.db
+.pytest_cache/

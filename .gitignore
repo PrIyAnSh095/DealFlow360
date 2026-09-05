@@ -29,3 +29,9 @@ dist/
 .DS_Store
 *.pem
 .vercel
+
+# IDE & Cache
+.vscode/
+.idea/
+.eslintcache
+*.tsbuildinfo

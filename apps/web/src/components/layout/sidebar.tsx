@@ -3,28 +3,43 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navigation } from "@/config/navigation";
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <aside className="w-64 border-r border-border bg-muted/30 flex flex-col h-full overflow-y-auto">
-      <div className="p-4 md:p-6 sticky top-0 bg-muted/30 backdrop-blur-sm">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded flex items-center justify-center font-bold text-primary-foreground">
+    <aside 
+      className={cn(
+        "relative flex flex-col h-full bg-surface border-r border-border transition-all duration-300",
+        isCollapsed ? "w-16" : "w-56"
+      )}
+    >
+      <div className="flex items-center h-14 px-4 border-b border-border">
+        <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
+          <div className="shrink-0 w-8 h-8 bg-primary rounded flex items-center justify-center font-bold text-primary-foreground text-sm">
             D
           </div>
-          <span className="font-bold text-lg tracking-tight">DealFlow360</span>
+          {!isCollapsed && (
+            <span className="font-semibold text-[15px] tracking-tight whitespace-nowrap">
+              DealFlow360
+            </span>
+          )}
         </Link>
       </div>
 
-      <nav className="flex-1 px-4 space-y-6 pb-8">
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
         {navigation.map((section) => (
           <div key={section.name}>
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-2">
-              {section.name}
-            </h3>
-            <ul className="space-y-1">
+            {!isCollapsed && (
+              <h3 className="px-2 mb-2 text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">
+                {section.name}
+              </h3>
+            )}
+            <ul className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = pathname.startsWith(item.href);
                 const Icon = item.icon;
@@ -33,14 +48,16 @@ export function Sidebar() {
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className={`flex items-center gap-3 px-2 py-2 rounded-md text-sm transition-colors ${
+                      title={isCollapsed ? item.name : undefined}
+                      className={cn(
+                        "flex items-center gap-3 px-2 py-1.5 rounded-md text-[13px] transition-colors group",
                         isActive
-                          ? "bg-primary text-primary-foreground font-medium"
-                          : "text-foreground hover:bg-muted"
-                      }`}
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "text-foreground-muted hover:bg-muted hover:text-foreground"
+                      )}
                     >
-                      <Icon className="w-4 h-4" />
-                      {item.name}
+                      <Icon className={cn("w-4 h-4 shrink-0", isActive ? "text-primary" : "text-foreground-muted group-hover:text-foreground")} />
+                      {!isCollapsed && <span className="truncate">{item.name}</span>}
                     </Link>
                   </li>
                 );
@@ -49,6 +66,13 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -right-3 top-16 flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-foreground-muted hover:text-foreground shadow-sm z-20"
+      >
+        {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+      </button>
     </aside>
   );
 }

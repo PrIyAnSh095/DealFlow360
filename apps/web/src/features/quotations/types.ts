@@ -4,6 +4,8 @@ export interface Product {
   sku: string;
   category: string;
   sales_price: number;
+  cost: number;
+  is_active: boolean;
 }
 
 export interface QuoteLineInput {
@@ -36,4 +38,21 @@ export interface QuoteRecalculateResponse {
   requires_approval: boolean;
   explanations: string[];
   lines: QuoteLineResponse[];
+}
+
+export interface QuotationCreate {
+  deal_id: string;
+  lines: QuoteLineInput[];
+}
+
+export interface QuotationResponse {
+  id: string;
+  deal_id: string;
+  status: string;
+  subtotal: number;
+  total_discount: number;
+  total: number;
+  margin_percentage: number;
+  risk_score: "LOW" | "MEDIUM" | "HIGH";
+  requires_approval: boolean;
 }

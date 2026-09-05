@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, Boolean, DateTime
+from sqlalchemy import Column, String, Numeric, Boolean, DateTime
 from sqlalchemy.sql import func
 from src.core.database import Base
 
@@ -12,7 +12,7 @@ class Product(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
     sku = Column(String, unique=True, index=True, nullable=False)
-    category = Column(String, nullable=False) # e.g. "hardware", "service", "software"
+    category = Column(String, default="hardware", nullable=True) # e.g. "hardware", "service", "software"
     sales_price = Column(Float, nullable=False)
     cost = Column(Float, nullable=False)
     active = Column(Boolean, default=True)

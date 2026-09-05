@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # ── Database ───────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "sqlite:///./dealflow360.db"  # Read from .env or environment; falls back to local SQLite for dev
+    DATABASE_URL: str  # Loaded from .env or environment variable (PostgreSQL)
 
     # ── Authentication (JWT) ───────────────────────────────────────────────────
     AUTH_SECRET: str = "super-secret-key-for-dealflow360-dev-only-min-32-chars"  # Read from .env or environment

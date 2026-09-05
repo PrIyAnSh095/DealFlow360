@@ -22,8 +22,7 @@ from src.core.config import get_settings
 from src.core.database import Base
 
 # ─── Import all models so Alembic sees them ────────────────────────────────────
-# Add new model imports here as they are created.
-from src.models.user import User  # noqa: F401
+import src.models  # noqa: F401
 
 # ──────────────────────────────────────────────────────────────────────────────
 

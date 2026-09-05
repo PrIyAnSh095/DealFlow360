@@ -16,15 +16,10 @@ def _build_engine():
     settings = get_settings()
     url = settings.DATABASE_URL
 
-    connect_args = {}
-    if url.startswith("sqlite"):
-        connect_args["check_same_thread"] = False
-
     engine = create_engine(
         url,
         echo=(settings.APP_ENV == "development"),
         future=True,
-        connect_args=connect_args,
     )
     return engine
 

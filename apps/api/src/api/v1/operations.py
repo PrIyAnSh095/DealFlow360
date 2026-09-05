@@ -11,6 +11,7 @@ from src.schemas.operations import (
     FulfillmentRecommendationResponse, FulfillmentRecommendationLine, 
     FulfillmentAllocationInput, FulfillmentRequest
 )
+from src.api.v1.billing import generate_invoice
 
 router = APIRouter()
 
@@ -31,8 +32,8 @@ def get_pending_orders(db: Session = Depends(get_db)):
             quotation_id=order.quotation_id,
             status=order.status,
             created_at=order.created_at,
-            customer_name=deal.customer_name if deal else "Unknown",
-            deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+            customer_name=deal.customer.name if deal and deal.customer else "Unknown",
+            deal_name=f"Order for {deal.customer.name}" if deal and deal.customer else "Unknown"
         ))
     return resp
 
@@ -57,8 +58,8 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
         quotation_id=order.quotation_id,
         status=order.status,
         created_at=order.created_at,
-        customer_name=deal.customer_name if deal else "Unknown",
-        deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+        customer_name=deal.customer.name if deal and deal.customer else "Unknown",
+        deal_name=f"Order for {deal.customer.name}" if deal and deal.customer else "Unknown"
     )
 
 @router.get("/fulfillment/recommend/{order_id}", response_model=FulfillmentRecommendationResponse)
@@ -139,4 +140,11 @@ def process_fulfillment(order_id: str, payload: FulfillmentRequest, db: Session 
                 
     order.status = "fulfilled"
     db.commit()
+    
+    # Generate invoice immediately after fulfillment
+    try:
+        generate_invoice(order_id=order.id, db=db, current_user=None)
+    except Exception as e:
+        print(f"Failed to auto-generate invoice: {e}")
+        
     return {"message": "Fulfillment processed successfully"}

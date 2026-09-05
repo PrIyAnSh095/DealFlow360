@@ -27,7 +27,7 @@ def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(ge
         resp = ApprovalRequestResponse.model_validate(req)
         if deal and quote:
             resp.deal_name = deal.name if hasattr(deal, 'name') else f"Deal {deal.id[:8]}"
-            resp.customer_name = deal.customer_name
+            resp.customer_name = deal.customer.name if deal.customer else "Unknown Customer"
             resp.quote_total = quote.total
             resp.quote_margin = quote.margin_percentage
             

@@ -4,6 +4,8 @@ export interface Product {
   sku: string;
   category: string;
   sales_price: number;
+  cost: number;
+  is_active: boolean;
 }
 
 export interface QuoteLineInput {

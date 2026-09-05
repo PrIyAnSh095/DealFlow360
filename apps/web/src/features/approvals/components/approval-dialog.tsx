@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ApprovalRequestResponse } from "../types";
-import { useApproveRequest, useRejectRequest } from "../hooks";
-import { X, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
+import { useApproveRequest, useRejectRequest, useReturnRequest } from "../hooks";
+import { X, AlertCircle, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
 
 interface ApprovalDialogProps {
   approval: ApprovalRequestResponse;
@@ -12,9 +12,10 @@ export function ApprovalDialog({ approval, onClose }: ApprovalDialogProps) {
   const [reason, setReason] = useState("");
   const { mutate: approve, isPending: isApproving } = useApproveRequest();
   const { mutate: reject, isPending: isRejecting } = useRejectRequest();
+  const { mutate: returnQuote, isPending: isReturning } = useReturnRequest();
   const [error, setError] = useState("");
 
-  const handleAction = (actionType: 'approve' | 'reject') => {
+  const handleAction = (actionType: 'approve' | 'reject' | 'return') => {
     if (reason.trim().length < 5) {
       setError("Please provide a meaningful reason (at least 5 characters) for the audit log.");
       return;
@@ -27,8 +28,12 @@ export function ApprovalDialog({ approval, onClose }: ApprovalDialogProps) {
       approve({ id: approval.id, payload }, {
         onSuccess: () => onClose()
       });
-    } else {
+    } else if (actionType === 'reject') {
       reject({ id: approval.id, payload }, {
+        onSuccess: () => onClose()
+      });
+    } else if (actionType === 'return') {
+      returnQuote({ id: approval.id, payload }, {
         onSuccess: () => onClose()
       });
     }
@@ -91,15 +96,23 @@ export function ApprovalDialog({ approval, onClose }: ApprovalDialogProps) {
         <div className="px-5 py-4 border-t border-border bg-muted/30 flex justify-end gap-3">
           <button 
             onClick={() => handleAction('reject')}
-            disabled={isRejecting || isApproving}
+            disabled={isRejecting || isApproving || isReturning}
             className="px-4 py-2 bg-background border border-danger/30 text-danger hover:bg-danger/5 rounded-md text-[13px] font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
             <XCircle className="w-4 h-4" /> Reject Quote
           </button>
           
           <button 
+            onClick={() => handleAction('return')}
+            disabled={isRejecting || isApproving || isReturning}
+            className="px-4 py-2 bg-background border border-warning/30 text-warning hover:bg-warning/5 rounded-md text-[13px] font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-4 h-4" /> Request Changes
+          </button>
+          
+          <button 
             onClick={() => handleAction('approve')}
-            disabled={isRejecting || isApproving}
+            disabled={isRejecting || isApproving || isReturning}
             className="px-4 py-2 bg-success text-white hover:bg-success/90 rounded-md text-[13px] font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm shadow-success/20"
           >
             <CheckCircle2 className="w-4 h-4" /> Approve Quote

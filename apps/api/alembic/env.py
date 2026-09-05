@@ -29,8 +29,9 @@ from src.models.quotation import Quotation, QuoteLine
 from src.models.portal import QuoteMessage
 from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
-from src.models.admin import PricingRule, SubscriptionPlan, GlobalSetting
+from src.models.admin import PricingRule, SubscriptionPlan, GlobalSetting, Category, CustomerTier, DiscountPolicy, ApprovalRule, ApprovalChain
 from src.models.billing import Invoice, InvoiceLine, Subscription, Payment
+from src.models.audit import AuditLog
 
 # ──────────────────────────────────────────────────────────────────────────────
 

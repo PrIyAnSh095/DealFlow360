@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime, timedelta
 
@@ -20,6 +20,12 @@ class DashboardMetrics(BaseModel):
     pending_approvals: int
     pending_approval_value: Decimal
     open_deals: int
+    
+    # Admin metrics
+    total_users: Optional[int] = None
+    active_customers: Optional[int] = None
+    total_products: Optional[int] = None
+    active_subscriptions: Optional[int] = None
 
 class ActivityLog(BaseModel):
     id: str
@@ -56,7 +62,7 @@ def get_dashboard_metrics(
             pending_approvals += 1
             pending_approval_value += deal.value
             
-    return DashboardMetrics(
+    response = DashboardMetrics(
         revenue_pipeline=revenue_pipeline,
         pipeline_growth_percent=12.0, # Mock growth for now
         deals_at_risk=deals_at_risk,
@@ -64,6 +70,16 @@ def get_dashboard_metrics(
         pending_approval_value=pending_approval_value,
         open_deals=open_deals
     )
+    
+    if current_user.role == "admin":
+        response.total_users = db.query(User).count()
+        response.active_customers = db.query(User).filter(User.role == "customer", User.is_active == True).count()
+        from src.models.product import Product
+        response.total_products = db.query(Product).count()
+        from src.models.billing import Subscription
+        response.active_subscriptions = db.query(Subscription).filter(Subscription.status == "active").count()
+        
+    return response
 
 @router.get("/activities", response_model=List[ActivityLog])
 def get_recent_activities(

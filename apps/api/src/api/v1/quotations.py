@@ -13,12 +13,9 @@ from decimal import Decimal
 
 router = APIRouter()
 
-# Discount ceilings by category (as per FR-05 logic)
-CATEGORY_DISCOUNT_LIMITS = {
-    "hardware": Decimal('15.0'),
-    "service": Decimal('10.0'),
-    "software": Decimal('20.0'),
-}
+from src.models.admin import DiscountPolicy, ApprovalRule
+
+# Removed hardcoded CATEGORY_DISCOUNT_LIMITS
 
 @router.get("/products", response_model=List[ProductResponse])
 def get_products(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -40,6 +37,9 @@ def recalculate_quotation(
     
     lines_response = []
     
+    active_policies = db.query(DiscountPolicy).filter(DiscountPolicy.is_active == True).all()
+    active_rules = db.query(ApprovalRule).filter(ApprovalRule.is_active == True).all()
+    
     for line_in in request.lines:
         product = db.query(Product).filter(Product.id == line_in.product_id).first()
         if not product:
@@ -51,11 +51,17 @@ def recalculate_quotation(
         line_net = line_gross - line_discount_amt
         line_cost = product.cost * Decimal(line_in.quantity)
         
-        # Risk assessment for this line
-        limit = CATEGORY_DISCOUNT_LIMITS.get(product.category.lower(), Decimal('10.0'))
+        # Policy evaluation for this line
+        policy = next((p for p in active_policies if p.target_category == product.category), None)
+        if not policy:
+            policy = next((p for p in active_policies if not p.target_category and not p.target_tier), None)
+            
+        limit = Decimal(policy.max_discount_percent) if policy else Decimal('10.0')
+        min_margin = Decimal(policy.min_margin_percent) if policy and policy.min_margin_percent is not None else Decimal('20.0')
+        
         if line_in.discount_percent > limit:
             requires_approval = True
-            explanations.append(f"{product.name} ({product.category}) discount of {line_in.discount_percent}% exceeds limit of {limit}%")
+            explanations.append(f"{product.name} ({product.category}) discount of {line_in.discount_percent}% exceeds policy limit of {limit}%")
             
         line_margin = Decimal('0.0')
         if line_net > Decimal('0.0'):
@@ -83,9 +89,20 @@ def recalculate_quotation(
         margin_percentage = ((total - estimated_cost) / total) * Decimal('100.0')
         
     risk_score = "LOW"
-    if requires_approval:
+    
+    # Check overall margin against rules
+    for rule in active_rules:
+        if rule.discount_threshold and subtotal > 0:
+            overall_discount_pct = (total_discount / subtotal) * Decimal('100.0')
+            if overall_discount_pct > Decimal(rule.discount_threshold):
+                requires_approval = True
+                if rule.risk_threshold:
+                    risk_score = rule.risk_threshold.upper()
+                explanations.append(f"Overall discount {overall_discount_pct.quantize(Decimal('0.01'))}% exceeds rule threshold of {rule.discount_threshold}%")
+                
+    if requires_approval and risk_score == "LOW":
         risk_score = "HIGH"
-    elif margin_percentage < Decimal('20.0'):
+    elif margin_percentage < Decimal('20.0') and risk_score == "LOW":
         risk_score = "MEDIUM"
         
     return QuoteRecalculateResponse(

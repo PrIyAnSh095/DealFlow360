@@ -25,7 +25,6 @@ export default function OperationsPage() {
     try {
       await submitFulfillment.mutateAsync({ orderId: selectedOrder.id, allocations });
       alert("Order fulfilled successfully!");
-      setSelectedOrder(null);
     } catch (e) {
       alert("Failed to fulfill order.");
     }
@@ -138,26 +137,40 @@ export default function OperationsPage() {
                 </div>
               </div>
 
-              {/* Billing Panel (Mock) */}
+              {/* Real Billing / Invoice Actions */}
               <div className="bg-surface border border-border rounded-lg shadow-sm overflow-hidden flex flex-col">
                 <div className="bg-muted px-4 py-3 font-medium text-[13px] border-b border-border flex items-center justify-between">
                   <span className="flex items-center gap-2">
                     <Receipt className="w-4 h-4 text-foreground-muted" />
-                    Billing & Invoice Preview
+                    Billing & Invoicing
                   </span>
                 </div>
                 <div className="p-4 text-[13px] text-foreground-muted">
-                  <div className="flex justify-between py-2 border-b border-border">
-                    <span>One-Time Hardware (MacBook Pro x 12)</span>
-                    <span className="text-foreground">$24,000.00</span>
-                  </div>
-                  <div className="flex justify-between py-2">
-                    <span>Recurring SaaS License (Monthly)</span>
-                    <span className="text-foreground text-primary">$1,200.00 / mo</span>
-                  </div>
-                  <div className="mt-4 p-3 bg-muted rounded flex items-start gap-3">
+                  <div className="mt-2 p-3 bg-muted rounded flex items-start gap-3">
                     <AlertCircle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <p className="text-[12px]">Invoice generation is automated. One-time charges will be billed immediately upon fulfillment. Recurring charges will be pushed to the Subscription Engine.</p>
+                    <p className="text-[12px]">Invoice generation is available after order fulfillment. Click below to generate the final invoice and start subscriptions.</p>
+                  </div>
+                  <div className="pt-4 flex justify-end">
+                    <button 
+                      onClick={async () => {
+                         try {
+                           const res = await fetch(`http://localhost:8000/api/v1/billing/orders/${selectedOrder.id}/generate-invoice`, {
+                             method: 'POST',
+                             headers: { 'Authorization': `Bearer ${localStorage.getItem('dealflow_token')}` }
+                           });
+                           if (res.ok) {
+                              alert('Invoice generated successfully!');
+                           } else {
+                              alert('Failed to generate invoice.');
+                           }
+                         } catch (e) {
+                           alert('Error generating invoice.');
+                         }
+                      }}
+                      className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Generate Real Invoice
+                    </button>
                   </div>
                 </div>
               </div>

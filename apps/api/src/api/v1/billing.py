@@ -21,8 +21,15 @@ from src.schemas.billing import (
 router = APIRouter()
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
-def get_invoices(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
-    invoices = db.query(Invoice).all()
+def get_invoices(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin", "customer"]))):
+    if current_user.role == "customer":
+        customer = db.query(Customer).filter(Customer.email == current_user.email).first()
+        if not customer:
+            return []
+        invoices = db.query(Invoice).filter(Invoice.customer_id == customer.id).all()
+    else:
+        invoices = db.query(Invoice).all()
+        
     resp = []
     for inv in invoices:
         cust = db.query(Customer).filter(Customer.id == inv.customer_id).first()
@@ -136,8 +143,15 @@ def pay_invoice(invoice_id: str, payload: PaymentCreate, db: Session = Depends(g
     return payment
 
 @router.get("/subscriptions", response_model=List[SubscriptionResponse])
-def get_subscriptions(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
-    subs = db.query(Subscription).all()
+def get_subscriptions(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin", "customer"]))):
+    if current_user.role == "customer":
+        customer = db.query(Customer).filter(Customer.email == current_user.email).first()
+        if not customer:
+            return []
+        subs = db.query(Subscription).filter(Subscription.customer_id == customer.id).all()
+    else:
+        subs = db.query(Subscription).all()
+        
     resp = []
     for sub in subs:
         cust = db.query(Customer).filter(Customer.id == sub.customer_id).first()

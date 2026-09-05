@@ -20,6 +20,8 @@ export interface CustomerOrder {
   deal_name: string;
 }
 
+export type CustomerInvoice = any;
+
 export const customerApi = {
   getQuotations: async (): Promise<CustomerQuotation[]> => {
     const response = await apiClient.get<CustomerQuotation[]>('/customers/me/quotations');
@@ -31,12 +33,15 @@ export const customerApi = {
     return response.data;
   },
 
-  // Mocking invoices since we haven't implemented invoice backend fully yet
-  getInvoices: async (): Promise<any[]> => {
-    return [];
+  getInvoices: async (): Promise<CustomerInvoice[]> => {
+    const response = await apiClient.get<CustomerInvoice[]>('/billing/invoices');
+    // Assuming backend returns invoices for the current customer due to RoleChecker
+    // We might need to map backend schema to CustomerInvoice schema if they differ
+    return response.data;
   },
   
   getSubscriptions: async (): Promise<any[]> => {
-    return [];
-  }
+    const response = await apiClient.get('/billing/subscriptions');
+    return response.data;
+  },
 };

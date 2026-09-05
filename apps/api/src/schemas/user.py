@@ -14,8 +14,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # ── Role constants ─────────────────────────────────────────────────────────────
 
-# Roles that any member of the public may self-register as.
-PUBLIC_ALLOWED_ROLES = {"sales_rep", "customer"}
+PUBLIC_ALLOWED_ROLES = {"customer"}
 
 # All valid roles in the system (used internally / by seed / admin).
 ALL_VALID_ROLES = {"sales_rep", "sales_manager", "finance", "customer", "admin"}
@@ -45,8 +44,8 @@ class RegisterRequest(BaseModel):
         examples=["SecurePassword123"],
     )
     role: Optional[str] = Field(
-        default="sales_rep",
-        examples=["sales_rep"],
+        default="customer",
+        examples=["customer"],
     )
 
     @field_validator("email", mode="before")
@@ -58,7 +57,7 @@ class RegisterRequest(BaseModel):
     @field_validator("role", mode="before")
     @classmethod
     def validate_public_role(cls, v: Optional[str]) -> str:
-        role = (v or "sales_rep").lower().strip()
+        role = (v or "customer").lower().strip()
         if role not in PUBLIC_ALLOWED_ROLES:
             raise ValueError(
                 f"Role '{role}' is not available for self-registration. "

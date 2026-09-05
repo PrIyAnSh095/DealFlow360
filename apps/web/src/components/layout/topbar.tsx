@@ -44,7 +44,6 @@ export function Topbar() {
       
       <div className="flex items-center gap-2 ml-4">
         <ThemeToggle />
-        
         <button className="relative p-2 rounded-md hover:bg-muted text-foreground-muted hover:text-foreground transition-colors">
           <Bell className="h-4 w-4" />
           <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full ring-2 ring-surface" />

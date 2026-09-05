@@ -5,6 +5,10 @@ export interface DashboardMetrics {
   pending_approvals: number;
   pending_approval_value: number;
   open_deals: number;
+  total_users?: number;
+  active_customers?: number;
+  total_products?: number;
+  active_subscriptions?: number;
 }
 
 export interface ActivityLog {

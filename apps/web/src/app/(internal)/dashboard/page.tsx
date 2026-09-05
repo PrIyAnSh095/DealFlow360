@@ -79,6 +79,42 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+      
+      {/* Admin Specific Metrics */}
+      {user?.role === 'admin' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-2 border-b border-border/50">
+          <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
+            <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Total Users</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-foreground">{metrics?.total_users || 0}</span>
+              <span className="text-[12px] font-medium text-primary">Registered</span>
+            </div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
+            <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Active Customers</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-foreground">{metrics?.active_customers || 0}</span>
+              <span className="text-[12px] font-medium text-success">Engaged</span>
+            </div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
+            <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Products</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-foreground">{metrics?.total_products || 0}</span>
+              <span className="text-[12px] font-medium text-foreground-muted">In Catalog</span>
+            </div>
+          </div>
+          <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
+            <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Subscriptions</p>
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-foreground">{metrics?.active_subscriptions || 0}</span>
+              <span className="text-[12px] font-medium text-success flex items-center">
+                <CheckCircle2 className="w-3 h-3 mr-0.5" /> Active
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Overview Metrics (Dense row) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -29,4 +29,9 @@ export const authApi = {
     const response = await apiClient.get<User>('/auth/me');
     return response.data;
   },
+
+  updateMe: async (data: { name?: string; role?: string }): Promise<User> => {
+    const response = await apiClient.patch<User>('/auth/me', data);
+    return response.data;
+  },
 };

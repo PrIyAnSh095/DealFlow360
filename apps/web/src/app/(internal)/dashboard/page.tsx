@@ -3,9 +3,45 @@
 import { useAuth } from "@/features/auth/auth-context";
 import { Plus, Filter, Search, ArrowUpRight, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { dashboardApi } from "@/features/dashboard/api";
+import { DashboardMetrics, ActivityLog } from "@/features/dashboard/types";
+import { dealsApi } from "@/features/deals/api";
+import { Deal } from "@/features/deals/types";
+import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
+import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [attentionDeals, setAttentionDeals] = useState<Deal[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      dashboardApi.getMetrics(),
+      dashboardApi.getActivities(),
+      dealsApi.getDeals()
+    ]).then(([metricsData, activitiesData, dealsData]) => {
+      setMetrics(metricsData);
+      setActivities(activitiesData);
+      
+      // Filter deals requiring attention (high risk or pending approval)
+      const attention = dealsData.filter(d => d.risk === 'high' || d.status === 'approval').slice(0, 5);
+      setAttentionDeals(attention);
+    }).catch(err => {
+      console.error("Failed to load dashboard data", err);
+    }).finally(() => {
+      setIsLoading(false);
+    });
+  }, []);
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading dashboard...</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -14,7 +50,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Good morning, {user?.name?.split(' ')[0] || "Kaushik"}
+            Good morning, {user?.name?.split(' ')[0] || "User"}
           </h1>
           <p className="text-[13px] text-foreground-muted mt-1">
             Here's what needs your attention today.
@@ -34,7 +70,10 @@ export default function DashboardPage() {
             <Filter className="w-4 h-4 mr-2" />
             Filters
           </button>
-          <button className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm">
+          <button 
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm"
+          >
             <Plus className="w-4 h-4 mr-1.5" />
             New Deal
           </button>
@@ -43,36 +82,36 @@ export default function DashboardPage() {
 
       {/* 2. Overview Metrics (Dense row) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Revenue Pipeline</p>
+        <Link href="/deals" className="bg-surface border border-border rounded-lg p-4 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider group-hover:text-foreground transition-colors">Revenue Pipeline</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">₹2.4M</span>
+            <span className="text-2xl font-bold text-foreground">₹{((metrics?.revenue_pipeline || 0) / 1000).toFixed(1)}k</span>
             <span className="text-[12px] font-medium text-success flex items-center">
-              <ArrowUpRight className="w-3 h-3 mr-0.5" /> 12%
+              <ArrowUpRight className="w-3 h-3 mr-0.5" /> {metrics?.pipeline_growth_percent}%
             </span>
           </div>
-        </div>
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Deals at Risk</p>
+        </Link>
+        <Link href="/deals" className="bg-surface border border-border rounded-lg p-4 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider group-hover:text-foreground transition-colors">Deals at Risk</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-danger">3</span>
+            <span className="text-2xl font-bold text-danger">{metrics?.deals_at_risk || 0}</span>
             <span className="text-[12px] font-medium text-foreground-muted">Requires review</span>
           </div>
-        </div>
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Pending Approval</p>
+        </Link>
+        <Link href="/approvals" className="bg-surface border border-border rounded-lg p-4 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider group-hover:text-foreground transition-colors">Pending Approval</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-warning">5</span>
-            <span className="text-[12px] font-medium text-foreground-muted">Totaling ₹420k</span>
+            <span className="text-2xl font-bold text-warning">{metrics?.pending_approvals || 0}</span>
+            <span className="text-[12px] font-medium text-foreground-muted">Totaling ₹{((metrics?.pending_approval_value || 0) / 1000).toFixed(1)}k</span>
           </div>
-        </div>
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider">Open Deals</p>
+        </Link>
+        <Link href="/deals" className="bg-surface border border-border rounded-lg p-4 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group">
+          <p className="text-[12px] font-medium text-foreground-muted uppercase tracking-wider group-hover:text-foreground transition-colors">Open Deals</p>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">24</span>
+            <span className="text-2xl font-bold text-foreground">{metrics?.open_deals || 0}</span>
             <span className="text-[12px] font-medium text-foreground-muted">Active negotiations</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* 3. Main Grid (60% / 40%) */}
@@ -90,47 +129,46 @@ export default function DashboardPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-muted/50 text-[12px] font-semibold text-foreground-muted uppercase tracking-wider">
-                    <th className="px-5 py-3 font-medium">Deal</th>
+                    <th className="px-5 py-3 font-medium">Deal ID</th>
                     <th className="px-5 py-3 font-medium">Customer</th>
-                    <th className="px-5 py-3 font-medium text-right">Margin</th>
+                    <th className="px-5 py-3 font-medium text-right">Value</th>
                     <th className="px-5 py-3 font-medium text-center">Risk</th>
                     <th className="px-5 py-3 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="text-[13px] divide-y divide-border">
-                  <tr className="hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">Acme Renewal</td>
-                    <td className="px-5 py-3 text-foreground-muted">Acme Corp</td>
-                    <td className="px-5 py-3 text-right font-medium text-danger">18.2%</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-danger/10 text-danger border border-danger/20">High</span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <button className="text-primary font-medium hover:underline">Review</button>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">Globex Server Expansion</td>
-                    <td className="px-5 py-3 text-foreground-muted">Globex Ltd</td>
-                    <td className="px-5 py-3 text-right font-medium text-warning">24.1%</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-warning/10 text-warning border border-warning/20">Med</span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <button className="text-primary font-medium hover:underline">Review</button>
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">Initech Fleet Upgrade</td>
-                    <td className="px-5 py-3 text-foreground-muted">Initech</td>
-                    <td className="px-5 py-3 text-right font-medium text-success">32.0%</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-success/10 text-success border border-success/20">Low</span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <button className="text-foreground-muted font-medium hover:text-foreground hover:underline">Approve</button>
-                    </td>
-                  </tr>
+                  {attentionDeals.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-8 text-center text-foreground-muted">
+                        No deals currently require attention.
+                      </td>
+                    </tr>
+                  ) : (
+                    attentionDeals.map((deal) => {
+                      const isHighRisk = deal.risk === 'high';
+                      const isMedRisk = deal.risk === 'medium';
+                      return (
+                        <tr key={deal.id} className="hover:bg-muted/50 transition-colors">
+                          <td className="px-5 py-3 font-medium text-foreground">Deal {deal.id.slice(0,6)}</td>
+                          <td className="px-5 py-3 text-foreground-muted">{deal.customer?.name || "Unknown"}</td>
+                          <td className="px-5 py-3 text-right font-medium">₹{(deal.value / 1000).toFixed(1)}k</td>
+                          <td className="px-5 py-3 text-center">
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border",
+                              isHighRisk ? "bg-danger/10 text-danger border-danger/20" : 
+                              isMedRisk ? "bg-warning/10 text-warning border-warning/20" : 
+                              "bg-success/10 text-success border-success/20"
+                            )}>
+                              {deal.risk}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <Link href={`/deals/${deal.id}`} className="text-primary font-medium hover:underline">Review</Link>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -146,25 +184,16 @@ export default function DashboardPage() {
               <div>
                 <div className="flex justify-between text-[13px] mb-1.5">
                   <span className="font-medium flex items-center gap-1.5 text-foreground"><CheckCircle2 className="w-4 h-4 text-success" /> Healthy Deals</span>
-                  <span className="text-foreground-muted">18 deals</span>
+                  <span className="text-foreground-muted">{(metrics?.open_deals || 0) - (metrics?.deals_at_risk || 0)} deals</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-success h-2 rounded-full" style={{ width: '65%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-[13px] mb-1.5">
-                  <span className="font-medium flex items-center gap-1.5 text-foreground"><Clock className="w-4 h-4 text-warning" /> Warning / Stalled</span>
-                  <span className="text-foreground-muted">4 deals</span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-warning h-2 rounded-full" style={{ width: '20%' }}></div>
+                  <div className="bg-success h-2 rounded-full" style={{ width: '85%' }}></div>
                 </div>
               </div>
               <div>
                 <div className="flex justify-between text-[13px] mb-1.5">
                   <span className="font-medium flex items-center gap-1.5 text-foreground"><AlertTriangle className="w-4 h-4 text-danger" /> Critical Risk</span>
-                  <span className="text-foreground-muted">2 deals</span>
+                  <span className="text-foreground-muted">{metrics?.deals_at_risk || 0} deals</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
                   <div className="bg-danger h-2 rounded-full" style={{ width: '15%' }}></div>
@@ -173,41 +202,40 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-surface border border-border rounded-lg shadow-sm p-5 flex-1">
+          <div className="bg-surface border border-border rounded-lg shadow-sm p-5 flex-1 overflow-auto">
             <h2 className="text-[15px] font-semibold text-foreground mb-4">Recent Activity</h2>
             <div className="space-y-4">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-[11px] font-bold text-primary">AJ</span>
-                </div>
-                <div>
-                  <p className="text-[13px] text-foreground"><span className="font-medium">Alice Jones</span> approved <strong>Acme Renewal</strong></p>
-                  <p className="text-[11px] text-foreground-muted mt-0.5">2 hours ago</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-danger/10 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-3.5 h-3.5 text-danger" />
-                </div>
-                <div>
-                  <p className="text-[13px] text-foreground">Margin alert triggered on <strong>Globex Server Expansion</strong></p>
-                  <p className="text-[11px] text-foreground-muted mt-0.5">4 hours ago</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-warning/10 flex items-center justify-center shrink-0">
-                  <span className="text-[11px] font-bold text-warning">SM</span>
-                </div>
-                <div>
-                  <p className="text-[13px] text-foreground"><span className="font-medium">Sarah Miller</span> requested changes on <strong>Initech Fleet Upgrade</strong></p>
-                  <p className="text-[11px] text-foreground-muted mt-0.5">Yesterday</p>
-                </div>
-              </div>
+              {activities.length === 0 ? (
+                <div className="text-[13px] text-foreground-muted text-center py-4">No recent activity.</div>
+              ) : (
+                activities.map(activity => (
+                  <div key={activity.id} className="flex gap-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                      activity.color_hint === 'primary' && "bg-primary/10 text-primary",
+                      activity.color_hint === 'danger' && "bg-danger/10 text-danger",
+                      activity.color_hint === 'warning' && "bg-warning/10 text-warning",
+                      activity.color_hint === 'success' && "bg-success/10 text-success"
+                    )}>
+                      <span className="text-[11px] font-bold">{activity.initials}</span>
+                    </div>
+                    <div>
+                      <p className="text-[13px] text-foreground">
+                        <span className="font-medium">{activity.action_by}</span> {activity.action_type} <strong>{activity.target_name}</strong>
+                      </p>
+                      <p className="text-[11px] text-foreground-muted mt-0.5">
+                        {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
           
         </div>
       </div>
+      <CreateDealDialog isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
     </div>
   );
 }

@@ -37,3 +37,20 @@ export interface QuoteRecalculateResponse {
   explanations: string[];
   lines: QuoteLineResponse[];
 }
+
+export interface QuotationCreate {
+  deal_id: string;
+  lines: QuoteLineInput[];
+}
+
+export interface QuotationResponse {
+  id: string;
+  deal_id: string;
+  status: string;
+  subtotal: number;
+  total_discount: number;
+  total: number;
+  margin_percentage: number;
+  risk_score: "LOW" | "MEDIUM" | "HIGH";
+  requires_approval: boolean;
+}

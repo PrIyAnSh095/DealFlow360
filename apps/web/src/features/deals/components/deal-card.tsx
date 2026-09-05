@@ -16,20 +16,12 @@ export function DealCard({ deal }: DealCardProps) {
       <div className="bg-surface border border-border rounded-md p-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
         <div className="flex justify-between items-start mb-2">
           <h4 className="text-[13px] font-semibold text-foreground leading-tight line-clamp-2">
-            {deal.name}
+            Deal {deal.id.slice(0, 6)}
           </h4>
-          <div className={cn(
-            "shrink-0 flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold border",
-            isHighRisk ? "bg-danger/10 text-danger border-danger/20" : 
-            isMedRisk ? "bg-warning/10 text-warning border-warning/20" : 
-            "bg-success/10 text-success border-success/20"
-          )}>
-            {deal.ownerInitials}
-          </div>
         </div>
         
         <p className="text-[12px] text-foreground-muted truncate mb-3">
-          {deal.customerName}
+          {deal.customer?.name || 'Unknown Customer'}
         </p>
         
         <div className="flex items-center justify-between mt-auto pt-2 border-t border-border/50">
@@ -47,16 +39,10 @@ export function DealCard({ deal }: DealCardProps) {
               {isHighRisk && <AlertTriangle className="w-3 h-3 mr-1" />}
               {isMedRisk && <Clock className="w-3 h-3 mr-1" />}
               {!isHighRisk && !isMedRisk && <CheckCircle2 className="w-3 h-3 mr-1" />}
-              {deal.margin.toFixed(1)}%
+              N/A
             </div>
           </div>
         </div>
-        
-        {deal.nextAction && (
-          <div className="mt-2 text-[11px] font-medium text-primary bg-primary/5 px-2 py-1 rounded truncate">
-            → {deal.nextAction}
-          </div>
-        )}
       </div>
     </Link>
   );

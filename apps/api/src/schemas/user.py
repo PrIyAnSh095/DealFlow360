@@ -11,6 +11,10 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+
 class UserResponse(BaseModel):
     id: str
     email: str

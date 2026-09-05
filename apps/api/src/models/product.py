@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, Boolean, DateTime
+from sqlalchemy import Column, String, Numeric, Boolean, DateTime
 from sqlalchemy.sql import func
 from src.core.database import Base
 

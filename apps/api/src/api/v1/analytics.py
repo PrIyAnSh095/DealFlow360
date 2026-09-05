@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List
 from decimal import Decimal
+from datetime import datetime, timezone
 
 from src.api.deps import ANALYTICS_ROLES, get_db, RoleChecker
 from src.models.user import User
@@ -29,6 +30,12 @@ class AnalyticsDashboard(BaseModel):
     revenue_trend: List[TrendPoint]
     discount_trend: List[TrendPoint]
 
+
+def as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
 @router.get("/", response_model=AnalyticsDashboard)
 def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(ANALYTICS_ROLES))):
     # Total revenue (sum of paid invoices)
@@ -42,9 +49,18 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
     # Active deals
     active_deals = db.query(Deal).filter(Deal.status.in_(["prospecting", "qualification", "proposal", "negotiation", "approval"])).count()
     
-    # Average cycle time
-    # In a real app we'd diff created_at and won_at. Mock for now:
-    avg_cycle_time = 24.5
+    # Use the current age of active deals as the available cycle-time signal.
+    active_deals_query = db.query(Deal).filter(Deal.status.in_(
+        ["prospecting", "qualification", "proposal", "negotiation", "approval"]
+    ))
+    active_deal_rows = active_deals_query.all()
+    now = datetime.now(timezone.utc)
+    cycle_ages = [
+        (now - as_utc(deal.created_at)).total_seconds() / 86400
+        for deal in active_deal_rows
+        if deal.created_at
+    ]
+    avg_cycle_time = sum(cycle_ages) / len(cycle_ages) if cycle_ages else 0.0
     
     # Average discount
     avg_disc = db.query(func.avg(Quotation.margin_percentage)).scalar() or 0.0
@@ -57,24 +73,37 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
         active_deals=active_deals
     )
     
-    # Mock trends
-    revenue_trend = [
-        TrendPoint(label="Jan", value=125000),
-        TrendPoint(label="Feb", value=142000),
-        TrendPoint(label="Mar", value=98000),
-        TrendPoint(label="Apr", value=176000),
-        TrendPoint(label="May", value=210000),
-        TrendPoint(label="Jun", value=float(total_rev)),
-    ]
-    
-    discount_trend = [
-        TrendPoint(label="Jan", value=12.5),
-        TrendPoint(label="Feb", value=14.2),
-        TrendPoint(label="Mar", value=15.8),
-        TrendPoint(label="Apr", value=11.2),
-        TrendPoint(label="May", value=10.5),
-        TrendPoint(label="Jun", value=9.8),
-    ]
+    month_starts = []
+    month_cursor = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    for _ in range(5, -1, -1):
+        month = month_cursor.month - _
+        year = month_cursor.year + (month - 1) // 12
+        month_starts.append(datetime(year, ((month - 1) % 12) + 1, 1, tzinfo=timezone.utc))
+
+    invoices = db.query(Invoice).all()
+    quotations = db.query(Quotation).all()
+    revenue_trend = []
+    discount_trend = []
+    for index, month_start in enumerate(month_starts):
+        next_month = month_starts[index + 1] if index + 1 < len(month_starts) else now
+        month_invoices = [
+            invoice for invoice in invoices
+            if invoice.created_at and month_start <= as_utc(invoice.created_at) < next_month
+        ]
+        month_quotes = [
+            quote for quote in quotations
+            if quote.created_at and month_start <= as_utc(quote.created_at) < next_month
+        ]
+        month_subtotal = sum((quote.subtotal or Decimal("0")) for quote in month_quotes)
+        month_discount = sum((quote.total_discount or Decimal("0")) for quote in month_quotes)
+        revenue_trend.append(TrendPoint(
+            label=month_start.strftime("%b"),
+            value=float(sum((invoice.amount_paid or Decimal("0")) for invoice in month_invoices)),
+        ))
+        discount_trend.append(TrendPoint(
+            label=month_start.strftime("%b"),
+            value=float((month_discount / month_subtotal) * 100) if month_subtotal else 0.0,
+        ))
     
     return AnalyticsDashboard(
         overview=overview,

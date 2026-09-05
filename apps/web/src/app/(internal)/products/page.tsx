@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAdminProducts, useCreateProduct, useUpdateProduct } from "@/features/admin/hooks";
 import { Product } from "@/features/quotations/types";
-import { Box, Plus, Edit2, CheckCircle2, XCircle } from "lucide-react";
+import { Box, Plus, Edit2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +18,7 @@ export default function ProductsPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [createForm, setCreateForm] = useState<Partial<Product>>({
     name: "",
+    sku: "",
     category: "hardware",
     sales_price: 0,
     cost: 0,
@@ -31,9 +32,10 @@ export default function ProductsPage() {
       await createProduct.mutateAsync(createForm);
       toast.success("Product created successfully");
       setIsCreating(false);
-      setCreateForm({ name: "", category: "hardware", sales_price: 0, cost: 0, is_active: true });
-    } catch (e) {
-      toast.error("Failed to create product");
+      setCreateForm({ name: "", sku: "", category: "hardware", sales_price: 0, cost: 0, is_active: true });
+    } catch (error: unknown) {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(detail || "Failed to create product");
     }
   };
 
@@ -42,7 +44,7 @@ export default function ProductsPage() {
       await updateProduct.mutateAsync({ id, data: editForm });
       toast.success("Product updated");
       setIsEditing(null);
-    } catch (e) {
+    } catch {
       toast.error("Failed to update product");
     }
   };
@@ -51,7 +53,7 @@ export default function ProductsPage() {
     try {
       await updateProduct.mutateAsync({ id, data: { is_active: !currentStatus } });
       toast.success(`Product ${!currentStatus ? 'activated' : 'deactivated'}`);
-    } catch (e) {
+    } catch {
       toast.error("Failed to update status");
     }
   };
@@ -79,9 +81,10 @@ export default function ProductsPage() {
           <thead className="bg-muted text-foreground-muted border-b border-border sticky top-0">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">SKU</th>
               <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium text-right">Cost</th>
-              <th className="px-4 py-3 font-medium text-right">Price</th>
+              <th className="px-4 py-3 font-medium text-right">Internal Cost</th>
+              <th className="px-4 py-3 font-medium text-right">Customer Price</th>
               <th className="px-4 py-3 font-medium text-center">Status</th>
               <th className="px-4 py-3 font-medium w-32"></th>
             </tr>
@@ -91,6 +94,9 @@ export default function ProductsPage() {
               <tr className="bg-primary/5">
                 <td className="px-4 py-3">
                   <input autoFocus value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} className="w-full p-1 border rounded" placeholder="Name" />
+                </td>
+                <td className="px-4 py-3">
+                  <input value={createForm.sku} onChange={e => setCreateForm({...createForm, sku: e.target.value})} className="w-full p-1 border rounded" placeholder="SKU" />
                 </td>
                 <td className="px-4 py-3">
                   <select value={createForm.category} onChange={e => setCreateForm({...createForm, category: e.target.value})} className="w-full p-1 border rounded">
@@ -124,6 +130,11 @@ export default function ProductsPage() {
                   ) : (
                     <span className="font-medium text-foreground">{product.name}</span>
                   )}
+                </td>
+                <td className="px-4 py-3 text-foreground-muted">
+                  {isEditing === product.id ? (
+                    <input value={editForm.sku} onChange={e => setEditForm({...editForm, sku: e.target.value})} className="w-full p-1 border rounded" />
+                  ) : product.sku}
                 </td>
                 <td className="px-4 py-3 uppercase text-xs font-bold text-foreground-muted">
                   {isEditing === product.id ? (
@@ -171,7 +182,7 @@ export default function ProductsPage() {
               </tr>
             ))}
             {products?.length === 0 && !isCreating && (
-              <tr><td colSpan={6} className="p-8 text-center text-foreground-muted">No products found.</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-foreground-muted">No products found.</td></tr>
             )}
           </tbody>
         </table>

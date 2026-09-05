@@ -57,8 +57,8 @@ def get_health(
             health_score=max(0, score),
             margin_health=margin_health,
             discount_risk=discount_risk,
-            inventory_risk="Low", # Mocked for phase 1 sales rep
-            engagement="Active",
+            inventory_risk="Not tracked",
+            engagement="Not tracked",
             issues=issues
         ))
         

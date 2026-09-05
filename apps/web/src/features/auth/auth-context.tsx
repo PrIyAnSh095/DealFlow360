@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useSyncExternalStore } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, LoginCredentials, SignupCredentials } from "./types";
 import { authApi } from "./api";
@@ -20,10 +20,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: authApi.me,
+    enabled: isMounted && Boolean(localStorage.getItem("dealflow_token")),
     retry: false,
     // If you don't have a backend running yet, you might want to bypass this for local UI testing
     // by returning a mock user or letting it fail gracefully.

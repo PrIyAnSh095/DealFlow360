@@ -37,8 +37,8 @@ export function DealList({ deals }: DealListProps) {
                 
                 return (
                   <tr key={deal.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">{deal.name}</td>
-                    <td className="px-5 py-3 text-foreground-muted">{deal.customerName}</td>
+                    <td className="px-5 py-3 font-medium text-foreground">Deal {deal.id.slice(0, 6)}</td>
+                    <td className="px-5 py-3 text-foreground-muted">{deal.customer?.name || 'Unknown'}</td>
                     <td className="px-5 py-3 text-right font-medium text-foreground">
                       ₹{(deal.value / 1000).toFixed(1)}k
                     </td>
@@ -46,7 +46,7 @@ export function DealList({ deals }: DealListProps) {
                       "px-5 py-3 text-right font-medium",
                       isHighRisk ? "text-danger" : isMedRisk ? "text-warning" : "text-success"
                     )}>
-                      {deal.margin.toFixed(1)}%
+                      N/A
                     </td>
                     <td className="px-5 py-3 text-center">
                       <span className={cn(

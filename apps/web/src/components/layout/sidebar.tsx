@@ -6,10 +6,12 @@ import { navigation } from "@/config/navigation";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/auth-context";
 
 export function Sidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user } = useAuth();
 
   return (
     <aside 
@@ -32,7 +34,14 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
-        {navigation.map((section) => (
+        {navigation.map((section) => {
+          const visibleItems = section.items.filter(item => 
+            !item.roles || (user && item.roles.includes(user.role))
+          );
+          
+          if (visibleItems.length === 0) return null;
+
+          return (
           <div key={section.name}>
             {!isCollapsed && (
               <h3 className="px-2 mb-2 text-[11px] font-semibold text-foreground-muted uppercase tracking-wider">
@@ -40,7 +49,7 @@ export function Sidebar() {
               </h3>
             )}
             <ul className="space-y-0.5">
-              {section.items.map((item) => {
+              {visibleItems.map((item) => {
                 const isActive = pathname.startsWith(item.href);
                 const Icon = item.icon;
                 
@@ -64,7 +73,8 @@ export function Sidebar() {
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <button

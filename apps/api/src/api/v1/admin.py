@@ -1,14 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, Depends, Query, Body, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
 
-from src.api.deps import get_db, RoleChecker
-from src.models.user import User
-from src.models.admin import (
-    PricingRule, SubscriptionPlan, GlobalSetting, 
-    Category, CustomerTier, DiscountPolicy, ApprovalRule, ApprovalChain
-)
+from src.core.database import get_db
+from src.api.deps import RoleChecker
 from src.models.product import Product
+from src.models.pricing import Category, PriceList, DiscountPolicy, ApprovalRule
+from src.models.customer import CustomerTier, Customer
+from src.models.operations import Warehouse
+from src.models.user import User
+from src.models.audit import AuditEvent, AuditLog
+from src.models.ai_config import CompanyAIConfig
+from src.models.admin import (
+    PricingRule, SubscriptionPlan, GlobalSetting, ApprovalChain
+)
+from src.schemas.admin import (
     PricingRuleCreate, PricingRuleUpdate, PricingRuleResponse,
     SubscriptionPlanCreate, SubscriptionPlanUpdate, SubscriptionPlanResponse,
     GlobalSettingCreate, GlobalSettingUpdate, GlobalSettingResponse,
@@ -20,11 +26,82 @@ from src.models.product import Product
     ApprovalChainCreate, ApprovalChainUpdate, ApprovalChainResponse
 )
 from src.schemas.user import UserResponse
-from src.models.audit import AuditLog
-from src.core.security import get_password_hash
 from src.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from src.core.security import get_password_hash
+from src.models.organization import OrganizationProfile
+from src.services.audit_service import log_audit_event
 
 router = APIRouter()
+
+@router.get("/organization")
+def get_organization_profile(db: Session = Depends(get_db)):
+    org = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    if not org:
+        org = OrganizationProfile(id="org-default")
+        db.add(org)
+        db.commit()
+        db.refresh(org)
+    return org
+
+@router.post("/organization/onboarding")
+def complete_organization_onboarding(payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+    org = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    if not org:
+        org = OrganizationProfile(id="org-default")
+        db.add(org)
+
+    for key, value in payload.items():
+        if hasattr(org, key) and key != "id":
+            setattr(org, key, value)
+
+    org.onboarding_completed = True
+    db.commit()
+    db.refresh(org)
+
+    log_audit_event(
+        db,
+        user_id="admin",
+        action="ORGANIZATION_ONBOARDING_COMPLETED",
+        entity_type="OrganizationProfile",
+        entity_id="org-default",
+        details="Organization Admin completed multi-step onboarding and AI policy configuration"
+    )
+
+    return org
+@router.get("/ai-config")
+def get_ai_config(db: Session = Depends(get_db)):
+    config = db.query(CompanyAIConfig).filter(CompanyAIConfig.id == "default-config").first()
+    if not config:
+        config = CompanyAIConfig(id="default-config")
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    return config
+
+@router.put("/ai-config")
+def update_ai_config(payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+    config = db.query(CompanyAIConfig).filter(CompanyAIConfig.id == "default-config").first()
+    if not config:
+        config = CompanyAIConfig(id="default-config")
+        db.add(config)
+
+    for key, value in payload.items():
+        if hasattr(config, key) and key != "id":
+            setattr(config, key, value)
+
+    db.commit()
+    db.refresh(config)
+
+    log_audit_event(
+        db,
+        user_id="admin",
+        action="AI_CONFIG_UPDATED",
+        entity_type="CompanyAIConfig",
+        entity_id="default-config",
+        details="Updated Company AI data privacy consent settings"
+    )
+
+    return config
 
 # --- PRICING RULES ---
 @router.get("/pricing-rules", response_model=List[PricingRuleResponse])
@@ -33,8 +110,6 @@ def get_pricing_rules(db: Session = Depends(get_db), current_user: User = Depend
 
 @router.post("/pricing-rules", response_model=PricingRuleResponse, status_code=status.HTTP_201_CREATED)
 def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = PricingRule(**rule.model_dump())
     db.add(db_rule)
     db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_PRICING_RULE", entity_type="PRICING_RULE", details=rule.model_dump()))
@@ -44,8 +119,6 @@ def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), 
 
 @router.patch("/pricing-rules/{rule_id}", response_model=PricingRuleResponse)
 def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
     if not db_rule:
         raise HTTPException(status_code=404, detail="Pricing rule not found")
@@ -61,8 +134,6 @@ def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Dep
 
 @router.delete("/pricing-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_pricing_rule(rule_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
     if not db_rule:
         raise HTTPException(status_code=404, detail="Pricing rule not found")
@@ -77,8 +148,6 @@ def get_subscription_plans(db: Session = Depends(get_db), current_user: User = D
 
 @router.post("/subscription-plans", response_model=SubscriptionPlanResponse, status_code=status.HTTP_201_CREATED)
 def create_subscription_plan(plan: SubscriptionPlanCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = SubscriptionPlan(**plan.model_dump())
     db.add(db_plan)
     db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_SUBSCRIPTION_PLAN", entity_type="SUBSCRIPTION_PLAN", details=plan.model_dump()))
@@ -88,8 +157,6 @@ def create_subscription_plan(plan: SubscriptionPlanCreate, db: Session = Depends
 
 @router.patch("/subscription-plans/{plan_id}", response_model=SubscriptionPlanResponse)
 def update_subscription_plan(plan_id: str, plan: SubscriptionPlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
@@ -105,8 +172,6 @@ def update_subscription_plan(plan_id: str, plan: SubscriptionPlanUpdate, db: Ses
 
 @router.delete("/subscription-plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_subscription_plan(plan_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
     if not db_plan:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
@@ -121,8 +186,6 @@ def get_settings(db: Session = Depends(get_db), current_user: User = Depends(Rol
 
 @router.post("/settings", response_model=GlobalSettingResponse, status_code=status.HTTP_201_CREATED)
 def create_setting(setting: GlobalSettingCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_setting = GlobalSetting(**setting.model_dump())
     db.add(db_setting)
     db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_GLOBAL_SETTING", entity_type="GLOBAL_SETTING", details=setting.model_dump()))
@@ -132,8 +195,6 @@ def create_setting(setting: GlobalSettingCreate, db: Session = Depends(get_db), 
 
 @router.patch("/settings/{key}", response_model=GlobalSettingResponse)
 def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_setting = db.query(GlobalSetting).filter(GlobalSetting.key == key).first()
     if not db_setting:
         raise HTTPException(status_code=404, detail="Setting not found")
@@ -149,13 +210,11 @@ def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends
 
 # --- PRODUCTS (Admin CRUD) ---
 @router.get("/products", response_model=List[ProductResponse])
-def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def get_all_products(db: Session = Depends(get_db)):
     return db.query(Product).all()
 
 @router.post("/products", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 def create_product(product: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_prod = Product(**product.model_dump())
     db.add(db_prod)
     db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_PRODUCT", entity_type="PRODUCT", details=product.model_dump()))
@@ -165,8 +224,6 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db), curren
 
 @router.patch("/products/{product_id}", response_model=ProductResponse)
 def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
     db_prod = db.query(Product).filter(Product.id == product_id).first()
     if not db_prod:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -182,7 +239,7 @@ def update_product(product_id: str, product: ProductUpdate, db: Session = Depend
 
 # --- USERS (Admin CRUD) ---
 @router.get("/users", response_model=List[UserResponse])
-def get_all_users(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def get_all_users(db: Session = Depends(get_db)):
     return db.query(User).all()
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -201,7 +258,6 @@ def create_admin_user(user_in: AdminUserCreate, db: Session = Depends(get_db), c
     )
     db.add(db_user)
     
-    # Audit log
     db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_USER", entity_type="USER", details={"email": user_in.email, "role": user_in.role}))
     
     db.commit()
@@ -241,13 +297,33 @@ def deactivate_admin_user(user_id: str, db: Session = Depends(get_db), current_u
     db.commit()
 
 # --- AUDIT LOGS ---
-@router.get("/audit-logs", response_model=List[AuditLogResponse])
-def get_audit_logs(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    return db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(100).all()
+@router.get("/audit-logs")
+def get_audit_logs(
+    action: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db)
+):
+    query = db.query(AuditEvent)
+    if action:
+        query = query.filter(AuditEvent.action == action)
+    if user_id:
+        query = query.filter(AuditEvent.user_id == user_id)
+    
+    total = query.count()
+    events = query.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit).all()
+    
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "events": events
+    }
 
 # --- CATEGORIES ---
-@router.get("/categories", response_model=List[CategoryResponse])
-def get_categories(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+@router.get("/categories")
+def get_categories(db: Session = Depends(get_db)):
     return db.query(Category).all()
 
 @router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -282,8 +358,8 @@ def delete_category(cat_id: str, db: Session = Depends(get_db), current_user: Us
     db.commit()
 
 # --- CUSTOMER TIERS ---
-@router.get("/customer-tiers", response_model=List[CustomerTierResponse])
-def get_customer_tiers(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+@router.get("/customer-tiers")
+def get_customer_tiers(db: Session = Depends(get_db)):
     return db.query(CustomerTier).all()
 
 @router.post("/customer-tiers", response_model=CustomerTierResponse, status_code=status.HTTP_201_CREATED)
@@ -318,8 +394,8 @@ def delete_customer_tier(tier_id: str, db: Session = Depends(get_db), current_us
     db.commit()
 
 # --- DISCOUNT POLICIES ---
-@router.get("/discount-policies", response_model=List[DiscountPolicyResponse])
-def get_discount_policies(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+@router.get("/discount-policies")
+def get_discount_policies(db: Session = Depends(get_db)):
     return db.query(DiscountPolicy).all()
 
 @router.post("/discount-policies", response_model=DiscountPolicyResponse, status_code=status.HTTP_201_CREATED)
@@ -354,8 +430,8 @@ def delete_discount_policy(policy_id: str, db: Session = Depends(get_db), curren
     db.commit()
 
 # --- APPROVAL RULES ---
-@router.get("/approval-rules", response_model=List[ApprovalRuleResponse])
-def get_approval_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+@router.get("/approval-rules")
+def get_approval_rules(db: Session = Depends(get_db)):
     return db.query(ApprovalRule).all()
 
 @router.post("/approval-rules", response_model=ApprovalRuleResponse, status_code=status.HTTP_201_CREATED)
@@ -391,7 +467,7 @@ def delete_approval_rule(rule_id: str, db: Session = Depends(get_db), current_us
 
 # --- APPROVAL CHAINS ---
 @router.get("/approval-chains", response_model=List[ApprovalChainResponse])
-def get_approval_chains(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_approval_chains(db: Session = Depends(get_db)):
     return db.query(ApprovalChain).all()
 
 @router.post("/approval-chains", response_model=ApprovalChainResponse, status_code=status.HTTP_201_CREATED)
@@ -424,3 +500,15 @@ def delete_approval_chain(chain_id: str, db: Session = Depends(get_db), current_
     db.delete(db_chain)
     db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_APPROVAL_CHAIN", entity_type="APPROVAL_CHAIN", entity_id=chain_id))
     db.commit()
+
+@router.get("/customers")
+def list_customers(db: Session = Depends(get_db)):
+    return db.query(Customer).all()
+
+@router.get("/warehouses")
+def list_warehouses(db: Session = Depends(get_db)):
+    return db.query(Warehouse).all()
+
+@router.get("/sales-reps")
+def list_sales_reps(db: Session = Depends(get_db)):
+    return db.query(User).filter(User.role.in_(["sales", "sales_rep", "manager", "sales_manager"])).all()

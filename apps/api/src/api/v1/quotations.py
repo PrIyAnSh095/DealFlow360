@@ -1,149 +1,115 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
+from decimal import Decimal
+
 from src.core.database import get_db
-from src.api.deps import get_current_user
-from src.models.user import User
-from src.models.product import Product
+from src.core.security import get_current_user
 from src.models.quotation import Quotation, QuoteLine
+from src.models.product import Product
 from src.models.deal import Deal
 from src.models.approval import ApprovalRequest, ApprovalAuditLog
-from src.schemas.quotation import QuoteRecalculateRequest, QuoteRecalculateResponse, QuoteLineResponse, ProductResponse, QuotationCreate, QuotationResponse
-from decimal import Decimal
+from src.services.pricing_service import recalculate_quotation
+from src.services.approval_service import submit_quote_for_approval
+from src.services.ai_service import ai_service
+from src.services.audit_service import log_audit_event
 
 router = APIRouter()
 
-from src.models.admin import DiscountPolicy, ApprovalRule
+class QuoteLineInput(BaseModel):
+    product_id: str
+    quantity: int = 1
+    discount_percent: float = 0.0
 
-# Removed hardcoded CATEGORY_DISCOUNT_LIMITS
+class CreateQuoteInput(BaseModel):
+    deal_id: str
+    lines: List[QuoteLineInput]
 
-@router.get("/products", response_model=List[ProductResponse])
-def get_products(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return db.query(Product).filter(Product.active == True).all()
+class QuoteRecalculateRequest(BaseModel):
+    lines: List[QuoteLineInput]
 
-@router.post("/{quotation_id}/recalculate", response_model=QuoteRecalculateResponse)
-def recalculate_quotation(
-    quotation_id: str, 
-    request: QuoteRecalculateRequest, 
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    subtotal = Decimal('0.0')
-    total_discount = Decimal('0.0')
-    estimated_cost = Decimal('0.0')
-    
-    explanations = []
-    requires_approval = False
-    
-    lines_response = []
-    
-    active_policies = db.query(DiscountPolicy).filter(DiscountPolicy.is_active == True).all()
-    active_rules = db.query(ApprovalRule).filter(ApprovalRule.is_active == True).all()
-    
-    for line_in in request.lines:
-        product = db.query(Product).filter(Product.id == line_in.product_id).first()
-        if not product:
-            continue
-            
-        # Financials for this line
-        line_gross = product.sales_price * Decimal(line_in.quantity)
-        line_discount_amt = line_gross * (line_in.discount_percent / Decimal('100.0'))
-        line_net = line_gross - line_discount_amt
-        line_cost = product.cost * Decimal(line_in.quantity)
-        
-        # Policy evaluation for this line
-        policy = next((p for p in active_policies if p.target_category == product.category), None)
-        if not policy:
-            policy = next((p for p in active_policies if not p.target_category and not p.target_tier), None)
-            
-        limit = Decimal(policy.max_discount_percent) if policy else Decimal('10.0')
-        min_margin = Decimal(policy.min_margin_percent) if policy and policy.min_margin_percent is not None else Decimal('20.0')
-        
-        if line_in.discount_percent > limit:
-            requires_approval = True
-            explanations.append(f"{product.name} ({product.category}) discount of {line_in.discount_percent}% exceeds policy limit of {limit}%")
-            
-        line_margin = Decimal('0.0')
-        if line_net > Decimal('0.0'):
-            line_margin = ((line_net - line_cost) / line_net) * Decimal('100.0')
-            
-        # Accumulate
-        subtotal += line_gross
-        total_discount += line_discount_amt
-        estimated_cost += line_cost
-        
-        lines_response.append(QuoteLineResponse(
-            product_id=product.id,
-            product_name=product.name,
-            quantity=line_in.quantity,
-            unit_price=product.sales_price,
-            discount_percent=line_in.discount_percent,
-            line_total=line_net.quantize(Decimal('0.01')),
-            line_margin_percent=line_margin.quantize(Decimal('0.01'))
-        ))
-        
-    # Global metrics
-    total = subtotal - total_discount
-    margin_percentage = Decimal('0.0')
-    if total > Decimal('0.0'):
-        margin_percentage = ((total - estimated_cost) / total) * Decimal('100.0')
-        
-    risk_score = "LOW"
-    
-    # Check overall margin against rules
-    for rule in active_rules:
-        if rule.discount_threshold and subtotal > 0:
-            overall_discount_pct = (total_discount / subtotal) * Decimal('100.0')
-            if overall_discount_pct > Decimal(rule.discount_threshold):
-                requires_approval = True
-                if rule.risk_threshold:
-                    risk_score = rule.risk_threshold.upper()
-                explanations.append(f"Overall discount {overall_discount_pct.quantize(Decimal('0.01'))}% exceeds rule threshold of {rule.discount_threshold}%")
-                
-    if requires_approval and risk_score == "LOW":
-        risk_score = "HIGH"
-    elif margin_percentage < Decimal('20.0') and risk_score == "LOW":
-        risk_score = "MEDIUM"
-        
-    return QuoteRecalculateResponse(
-        subtotal=subtotal.quantize(Decimal('0.01')),
-        total_discount=total_discount.quantize(Decimal('0.01')),
-        total=total.quantize(Decimal('0.01')),
-        estimated_cost=estimated_cost.quantize(Decimal('0.01')),
-        margin_percentage=margin_percentage.quantize(Decimal('0.01')),
-        risk_score=risk_score,
-        requires_approval=requires_approval,
-        explanations=explanations,
-        lines=lines_response
-    )
+@router.get("")
+@router.get("/")
+def list_quotations(db: Session = Depends(get_db)):
+    quotes = db.query(Quotation).all()
+    results = []
+    for q in quotes:
+        deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+        results.append({
+            "id": q.id,
+            "deal_id": q.deal_id,
+            "customer_name": deal.customer_name if (deal and hasattr(deal, 'customer_name')) else "Unknown",
+            "status": q.status,
+            "subtotal": q.subtotal,
+            "total_discount": q.total_discount,
+            "total": q.total,
+            "margin_percentage": q.margin_percentage,
+            "risk_score": q.risk_score,
+            "requires_approval": q.requires_approval,
+            "created_at": q.created_at
+        })
+    return results
 
-@router.post("/", response_model=QuotationResponse)
+@router.get("/{quotation_id}")
+def get_quotation(quotation_id: str, db: Session = Depends(get_db)):
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+        
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+    lines_data = []
+    for line in q.lines:
+        p = db.query(Product).filter(Product.id == line.product_id).first()
+        lines_data.append({
+            "id": line.id,
+            "product_id": line.product_id,
+            "product_name": p.name if p else "Product",
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "discount_percent": line.discount_percent
+        })
+
+    return {
+        "id": q.id,
+        "deal_id": q.deal_id,
+        "customer_name": deal.customer_name if (deal and hasattr(deal, 'customer_name')) else "Unknown",
+        "status": q.status,
+        "subtotal": q.subtotal,
+        "total_discount": q.total_discount,
+        "total": q.total,
+        "margin_percentage": q.margin_percentage,
+        "risk_score": q.risk_score,
+        "requires_approval": q.requires_approval,
+        "lines": lines_data,
+        "created_at": q.created_at
+    }
+
+@router.post("")
+@router.post("/")
 def create_quotation(
-    request: QuotationCreate,
+    request: CreateQuoteInput,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     deal = db.query(Deal).filter(Deal.id == request.deal_id).first()
     if not deal:
         raise HTTPException(status_code=404, detail="Deal not found")
 
-    # Run recalculation logic to get final values
-    recalc_request = QuoteRecalculateRequest(lines=request.lines)
-    calc_result = recalculate_quotation("new", recalc_request, db, current_user)
-    
     quotation = Quotation(
         deal_id=request.deal_id,
-        subtotal=calc_result.subtotal,
-        total_discount=calc_result.total_discount,
-        total=calc_result.total,
-        margin_percentage=calc_result.margin_percentage,
-        risk_score=calc_result.risk_score,
-        requires_approval=calc_result.requires_approval
+        subtotal=0.0,
+        total_discount=0.0,
+        total=0.0,
+        margin_percentage=0.0,
+        risk_score="LOW",
+        requires_approval=False,
+        status="DRAFT"
     )
     db.add(quotation)
     db.commit()
     db.refresh(quotation)
-    
+
     for line_in in request.lines:
         product = db.query(Product).filter(Product.id == line_in.product_id).first()
         if product:
@@ -155,81 +121,141 @@ def create_quotation(
                 discount_percent=line_in.discount_percent
             )
             db.add(q_line)
-            
+
     db.commit()
     db.refresh(quotation)
     
-    # Update deal risk based on quote
-    deal.risk = calc_result.risk_score
-    deal.value = calc_result.total
-    if calc_result.requires_approval:
+    updated_q = recalculate_quotation(db, quotation)
+    
+    # Update deal risk & value based on quote
+    deal.risk = updated_q.risk_score
+    deal.value = updated_q.total
+    if updated_q.requires_approval:
         deal.status = "approval"
     db.commit()
 
-    return quotation
+    return updated_q
 
-@router.get("/{quotation_id}", response_model=QuotationResponse)
-def get_quotation(
+@router.post("/{quotation_id}/recalculate")
+def recalculate_quote_endpoint(
+    quotation_id: str,
+    request: Optional[QuoteRecalculateRequest] = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    if request and request.lines:
+        db.query(QuoteLine).filter(QuoteLine.quotation_id == quotation_id).delete()
+        for line_in in request.lines:
+            product = db.query(Product).filter(Product.id == line_in.product_id).first()
+            if product:
+                q_line = QuoteLine(
+                    quotation_id=q.id,
+                    product_id=product.id,
+                    quantity=line_in.quantity,
+                    unit_price=product.sales_price,
+                    discount_percent=line_in.discount_percent
+                )
+                db.add(q_line)
+        db.commit()
+        db.refresh(q)
+
+    updated_q = recalculate_quotation(db, q)
+    lines_data = []
+    for line in updated_q.lines:
+        p = db.query(Product).filter(Product.id == line.product_id).first()
+        lines_data.append({
+            "id": line.id,
+            "product_id": line.product_id,
+            "product_name": p.name if p else "Product",
+            "quantity": line.quantity,
+            "unit_price": line.unit_price,
+            "discount_percent": line.discount_percent
+        })
+
+    return {
+        "id": updated_q.id,
+        "subtotal": updated_q.subtotal,
+        "total_discount": updated_q.total_discount,
+        "total": updated_q.total,
+        "margin_percentage": updated_q.margin_percentage,
+        "risk_score": updated_q.risk_score,
+        "requires_approval": updated_q.requires_approval,
+        "lines": lines_data
+    }
+
+@router.post("/{quotation_id}/submit")
+def submit_quote(
     quotation_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
-    quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
-    if not quotation:
-        raise HTTPException(status_code=404, detail="Quotation not found")
-    return quotation
-
-@router.get("/", response_model=List[QuotationResponse])
-def get_quotations(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    quotations = db.query(Quotation).all()
-    return quotations
-
-@router.post("/{quotation_id}/submit", response_model=QuotationResponse)
-def submit_quotation(
-    quotation_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
-    if not quotation:
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
         raise HTTPException(status_code=404, detail="Quotation not found")
         
-    deal = db.query(Deal).filter(Deal.id == quotation.deal_id).first()
-    if not deal:
-        raise HTTPException(status_code=404, detail="Deal not found")
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+    recalculate_quotation(db, q)
 
-    # Lock quote and update status
-    quotation.status = "pending_approval" if quotation.requires_approval else "approved"
-    
-    # Update deal
-    if quotation.requires_approval:
-        deal.status = "approval"
+    user_id = current_user.get("sub") if isinstance(current_user, dict) else getattr(current_user, "id", "u-sales")
+    user_role = current_user.get("role", "sales") if isinstance(current_user, dict) else getattr(current_user, "role", "sales")
+
+    if q.requires_approval:
+        app_req = submit_quote_for_approval(db, quotation_id, requester_id=user_id)
+        if deal:
+            deal.status = "approval"
         
-        # Create approval request
-        approval_req = ApprovalRequest(
-            quotation_id=quotation.id,
-            requester_id=current_user.id,
-            status="PENDING"
-        )
-        db.add(approval_req)
-        db.flush() # flush to get the ID
-        
-        # Create approval request audit
         audit = ApprovalAuditLog(
-            approval_request_id=approval_req.id,
-            actor_id=current_user.id,
-            action="SUBMITTED",
-            reason="Submitted for approval by Sales Rep"
+            deal_id=deal.id if deal else q.deal_id,
+            action="submit",
+            role=user_role,
+            notes="Submitted for approval by Sales Rep"
         )
         db.add(audit)
+        db.commit()
+        return {"status": "SUBMITTED_FOR_APPROVAL", "approval_request_id": getattr(app_req, "id", None), "risk_score": q.risk_score}
     else:
-        deal.status = "negotiation"
+        q.status = "APPROVED"
+        if deal:
+            deal.status = "negotiation"
+        db.commit()
+        return {"status": "APPROVED", "message": "Quotation approved automatically (Low Risk)"}
 
-    db.commit()
-    db.refresh(quotation)
-    return quotation
+@router.post("/{quotation_id}/ai-explanation")
+def get_quotation_ai_explanation(
+    quotation_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generates an AI quotation explanation for authorized roles only.
+    Forbidden for Customer / Customer Portal roles (returns 403).
+    """
+    role = current_user.get("role", "").lower() if isinstance(current_user, dict) else getattr(current_user, "role", "").lower()
+    allowed_roles = ["sales", "sales_rep", "manager", "sales_manager", "finance", "ops", "finance_ops", "admin"]
+    if role not in allowed_roles:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Role '{role}' is not authorized to access quotation AI explanations."
+        )
 
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
 
+    context = ai_service.build_quotation_ai_context(db, quotation_id)
+    explanation = ai_service.generate_explanation(context, role=role)
+
+    user_id = current_user.get("sub", "system") if isinstance(current_user, dict) else getattr(current_user, "id", "system")
+    log_audit_event(
+        db,
+        user_id=user_id,
+        action="AI_EXPLANATION_REQUESTED",
+        entity_type="Quotation",
+        entity_id=quotation_id,
+        details=f"User with role '{role}' requested AI explanation for quote {quotation_id}"
+    )
+
+    return explanation

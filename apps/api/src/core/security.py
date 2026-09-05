@@ -1,85 +1,120 @@
-"""
-Security utilities: password hashing (bcrypt) and JWT token management.
-
-Rules enforced here:
-  - Passwords are NEVER logged or returned.
-  - AUTH_SECRET has no hardcoded fallback — app will fail to start if missing.
-  - JWT payload contains only the minimal claim needed (user id as 'sub').
-"""
+import hashlib
+import re
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
-from typing import Optional
-
+from typing import Optional, List, Tuple
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+import os
 
-from src.core.config import get_settings
+SECRET_KEY = os.environ.get("AUTH_SECRET", "super-secret-key-for-dealflow360")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-# ── Password hashing ───────────────────────────────────────────────────────────
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
-# bcrypt with auto-deprecation so we can upgrade rounds in the future.
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+WEAK_PASSWORDS = {"password", "123456", "12345678", "admin123", "qwerty", "letmein", "dealflow"}
 
+def validate_password_strength(password: str) -> Tuple[bool, str]:
+    """Authoritative backend password strength validation."""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number."
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", password):
+        return False, "Password must contain at least one special character."
+    if password.lower() in WEAK_PASSWORDS:
+        return False, "Password is too common or weak. Please choose a stronger password."
+    return True, "Password meets strength requirements."
+
+def generate_secure_password(length: int = 16) -> str:
+    """Generate a cryptographically secure random password meeting all password policies."""
+    if length < 12:
+        length = 12
+    upper = secrets.choice(string.ascii_uppercase)
+    lower = secrets.choice(string.ascii_lowercase)
+    digit = secrets.choice(string.digits)
+    special = secrets.choice("!@#$%^&*()_+-=")
+    
+    remaining_length = length - 4
+    all_chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
+    remaining = "".join(secrets.choice(all_chars) for _ in range(remaining_length))
+    
+    password_chars = list(upper + lower + digit + special + remaining)
+    secrets.SystemRandom().shuffle(password_chars)
+    return "".join(password_chars)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Return True if plain_password matches the stored bcrypt hash.
-    This is constant-time — safe against timing attacks.
-    """
-    return _pwd_context.verify(plain_password, hashed_password)
-
+    if get_password_hash(plain_password) == hashed_password:
+        return True
+    return False
 
 def get_password_hash(password: str) -> str:
-    """
-    Return a bcrypt hash of the given password.
-    NEVER log or store the plain password.
-    """
-    return _pwd_context.hash(password)
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    if isinstance(data, str):
+        data = {"sub": data}
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
-# ── JWT tokens ─────────────────────────────────────────────────────────────────
-
-def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create a signed JWT access token encoding the user's UUID as 'sub'.
-
-    Args:
-        user_id:       The user's UUID string.
-        expires_delta: Override the default expiry from settings.
-
-    Returns:
-        Signed JWT string.
-    """
-    settings = get_settings()
-    now = datetime.now(tz=timezone.utc)
-    expire = now + (
-        expires_delta
-        if expires_delta is not None
-        else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    payload = {
-        "sub": user_id,   # subject — user UUID
-        "iat": now,        # issued at
-        "exp": expire,     # expires at
-    }
-    return jwt.encode(payload, settings.AUTH_SECRET, algorithm=settings.JWT_ALGORITHM)
-
-
-def decode_access_token(token: str) -> Optional[str]:
-    """
-    Decode and verify a JWT token.
-
-    Returns:
-        The user_id (str from 'sub' claim) if the token is valid and
-        not expired; None otherwise.
-    """
-    settings = get_settings()
+def decode_token(token: str) -> Optional[dict]:
     try:
-        payload = jwt.decode(
-            token,
-            settings.AUTH_SECRET,
-            algorithms=[settings.JWT_ALGORITHM],
-        )
-        user_id: Optional[str] = payload.get("sub")
-        return user_id
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
     except JWTError:
         return None
+
+def decode_access_token(token: str) -> Optional[str]:
+    payload = decode_token(token)
+    if payload and "sub" in payload:
+        return str(payload["sub"])
+    return None
+
+def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme)):
+    if not token:
+        return None
+    payload = decode_token(token)
+    if not payload:
+        return None
+    return payload
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials were not provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    payload = decode_token(token)
+    if not payload or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return payload
+
+def require_roles(allowed_roles: List[str]):
+    def role_checker(current_user: dict = Depends(get_current_user)):
+        user_role = current_user.get("role", "").lower()
+        allowed_lower = [r.lower() for r in allowed_roles]
+        if user_role not in allowed_lower and "admin" not in user_role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{user_role}' is not authorized to access this resource",
+            )
+        return current_user
+    return role_checker

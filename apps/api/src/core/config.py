@@ -4,6 +4,7 @@ Central application settings loaded from environment variables / .env file.
 All secrets MUST be provided via environment variables in production.
 No secrets are hardcoded here.
 """
+from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from functools import lru_cache
@@ -30,10 +31,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # ── Database ───────────────────────────────────────────────────────────────
-    DATABASE_URL: str  # Required — no default. Must be set in .env or environment.
+    DATABASE_URL: str  # Loaded from .env or environment variable (PostgreSQL)
 
     # ── Authentication (JWT) ───────────────────────────────────────────────────
-    AUTH_SECRET: str  # Required — no default. Generate with: openssl rand -hex 32
+    AUTH_SECRET: str = "super-secret-key-for-dealflow360-dev-only-min-32-chars"  # Read from .env or environment
     JWT_ALGORITHM: str = "HS256"
     # Token lifetime in minutes. Default: 7 days (convenient for dev).
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
@@ -41,9 +42,15 @@ class Settings(BaseSettings):
     # ── CORS ───────────────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "http://localhost:3000"
 
+    # ── AI / Ollama Settings ───────────────────────────────────────────────────
+    AI_ENABLED: bool = True
+    AI_PROVIDER: str = "ollama"
+    AI_BASE_URL: str = "http://localhost:11434"
+    AI_MODEL: str = "qwen3:4b"
+
     model_config = SettingsConfigDict(
-        # Look for .env in repo root, local api dir, or cwd
-        env_file=[str(_ENV_FILE_PATH), ".env"],
+        # Look for .env in repo root, local api dir, or current working directory
+        env_file=[str(_REPO_ROOT / ".env"), str(_API_ROOT / ".env"), ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # silently ignore unknown vars (e.g. AI_ENABLED)

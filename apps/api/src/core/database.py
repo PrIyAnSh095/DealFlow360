@@ -17,13 +17,10 @@ def _build_engine():
     settings = get_settings()
     url = settings.DATABASE_URL
 
-    # For PostgreSQL we use NullPool in tests/scripts; for the app server the
-    # default connection pool is fine. Keep simple here.
     engine = create_engine(
         url,
-        # Echo SQL only in development — never in production.
         echo=(settings.APP_ENV == "development"),
-        future=True,  # SQLAlchemy 2.x style
+        future=True,
     )
     return engine
 

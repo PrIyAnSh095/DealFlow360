@@ -64,14 +64,17 @@ export function Topbar() {
                 <p className="text-[11px] text-foreground-muted truncate capitalize">{user?.role || "Unknown Role"}</p>
               </div>
               <div className="flex flex-col gap-1 p-2 border-b border-border">
-                <Link href="/deals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/deals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                <Link href="/deals" onClick={() => setShowDropdown(false)} className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/deals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
                   Pipeline
                 </Link>
-                <Link href="/approvals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/approvals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                <Link href="/approvals" onClick={() => setShowDropdown(false)} className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/approvals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
                   Approvals
                 </Link>
-                <Link href="/operations" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/operations') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                <Link href="/operations" onClick={() => setShowDropdown(false)} className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/operations') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
                   Operations
+                </Link>
+                <Link href="/settings" onClick={() => setShowDropdown(false)} className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/settings') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Settings
                 </Link>
               </div>
               <button

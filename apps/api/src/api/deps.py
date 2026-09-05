@@ -44,7 +44,7 @@ def get_current_user(
     if user is None:
         raise credentials_exception
 
-    if not user.is_active:
+    if not getattr(user, "is_active", True):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive. Please contact support.",

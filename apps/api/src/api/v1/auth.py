@@ -1,161 +1,149 @@
-"""
-Authentication API router.
-
-Endpoints
----------
-POST /auth/register   Register a new user account.
-POST /auth/login      Authenticate and receive a JWT.
-POST /auth/logout     Instruct client to discard token (stateless).
-GET  /auth/me         Return the current authenticated user's profile.
-
-All endpoints are mounted at /api/v1/auth in main.py.
-"""
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr
 
-from src.api.deps import get_current_user
 from src.core.database import get_db
-from src.core.security import create_access_token, get_password_hash, verify_password
-from src.models.user import User
-from src.schemas.user import (
-    LoginRequest,
-    MessageResponse,
-    RegisterRequest,
-    TokenResponse,
-    UserResponse,
-    UserUpdate,
+from src.core.security import (
+    verify_password, get_password_hash, create_access_token, get_current_user,
+    validate_password_strength, generate_secure_password
 )
+from src.models.user import User
+from src.services.audit_service import log_audit_event
+from src.schemas.user import UserResponse, UserUpdate, MessageResponse
 
 router = APIRouter()
 
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
-# ── POST /auth/register ────────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    role: Optional[str] = "sales"
 
-@router.post(
-    "/register",
-    response_model=TokenResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Register a new user",
-    description=(
-        "Create a new account. Only 'sales_rep' and 'customer' roles are "
-        "available for self-registration."
-    ),
-)
-def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    # 1. Check for duplicate email (case-insensitive; email is normalised to
-    #    lowercase by the schema validator before reaching here).
-    existing = db.query(User).filter(User.email == body.email).first()
-    if existing:
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: dict
+
+@router.get("/generate-password")
+def generate_password():
+    """Generates a cryptographically secure random password meeting all password policies."""
+    password = generate_secure_password()
+    return {"password": password}
+
+@router.post("/signup", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse)
+def signup(body: RegisterRequest, db: Session = Depends(get_db)):
+    is_valid, error_msg = validate_password_strength(body.password)
+    if not is_valid:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email address already exists.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg,
         )
 
-    # 2. Hash password — plain text never touches the database.
+    existing = db.query(User).filter(User.email == body.email.lower()).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists",
+        )
+    
     hashed = get_password_hash(body.password)
-
-    # 3. Create user record.
     user = User(
+        email=body.email.lower(),
+        hashed_password=hashed,
         name=body.name,
-        email=body.email,          # already lowercased by validator
-        password_hash=hashed,
-        role=body.role,            # validated to PUBLIC_ALLOWED_ROLES
-        is_active=True,
+        role=body.role or "sales"
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    # 4. Issue JWT.
-    token = create_access_token(user_id=str(user.id))
-    return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
+    log_audit_event(
+        db,
+        user_id=user.id,
+        action="USER_REGISTERED",
+        entity_type="User",
+        entity_id=user.id,
+        details=f"User registered with role {user.role}"
+    )
 
+    token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role, "name": user.name})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role
+        }
+    }
 
-# ── POST /auth/login ───────────────────────────────────────────────────────────
-
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Login with email and password",
-)
-def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    # 1. Look up user by email.
-    user: User | None = db.query(User).filter(User.email == body.email).first()
-
-    # 2. Verify password.
-    # We intentionally use the same error message for "user not found" and
-    # "wrong password" to avoid user-enumeration attacks.
-    if user is None or not verify_password(body.password, user.password_hash):
+@router.post("/login", response_model=TokenResponse)
+def login(body: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email.lower()).first()
+    if not user or not verify_password(body.password, user.hashed_password if hasattr(user, 'hashed_password') and user.hashed_password else getattr(user, 'password_hash', '')):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password.",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="Incorrect email or password",
         )
+    
+    log_audit_event(
+        db,
+        user_id=user.id,
+        action="USER_LOGIN",
+        entity_type="User",
+        entity_id=user.id,
+        details="User logged in successfully"
+    )
 
-    # 3. Reject inactive accounts.
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive. Please contact support.",
-        )
+    token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role, "name": user.name})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role
+        }
+    }
 
-    # 4. Issue JWT.
-    token = create_access_token(user_id=str(user.id))
-    return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
+@router.post("/logout")
+def logout(current_user: dict = Depends(get_current_user)):
+    return {"message": "Successfully logged out. Please discard your token."}
 
+@router.get("/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
 
-# ── POST /auth/logout ──────────────────────────────────────────────────────────
-
-@router.post(
-    "/logout",
-    response_model=MessageResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Logout (stateless JWT — client must discard token)",
-)
-def logout(_current_user: User = Depends(get_current_user)) -> MessageResponse:
-    """
-    Because JWT is stateless, 'logout' means the client discards the token.
-
-    This endpoint validates the token (so the client knows it was accepted),
-    then instructs the client to delete it.  No server-side blacklist is
-    maintained at this scope; add a token blacklist/Redis layer when needed.
-    """
-    return MessageResponse(message="Successfully logged out. Please discard your token.")
-
-
-# ── GET /auth/me ───────────────────────────────────────────────────────────────
-
-@router.get(
-    "/me",
-    response_model=UserResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Get the current authenticated user",
-)
-def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
-    """Return the profile of the user identified by the Bearer token."""
-    return UserResponse.model_validate(current_user)
-
-
-@router.patch(
-    "/me",
-    response_model=UserResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Update current authenticated user",
-)
+@router.patch("/me")
 def update_me(
     body: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> UserResponse:
-    """Update profile information of the current user."""
-    if body.name is not None:
-        current_user.name = body.name
-    # Don't allow regular users to update their own role unless they are admins.
-    # To keep it simple for testing if role is provided and they are an admin, allow it.
-    if body.role is not None and current_user.role == "admin":
-        current_user.role = body.role
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("sub") or current_user.get("id")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    update_data = body.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        user.name = update_data["name"]
+    if "role" in update_data and update_data["role"] is not None and current_user.get("role") == "admin":
+        user.role = update_data["role"]
         
     db.commit()
-    db.refresh(current_user)
-    return UserResponse.model_validate(current_user)
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role
+    }

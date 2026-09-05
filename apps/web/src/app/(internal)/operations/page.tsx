@@ -3,7 +3,10 @@
 import { usePendingOrders, useFulfillmentRecommendation, useSubmitFulfillment } from "@/features/operations/hooks";
 import { Order } from "@/features/operations/types";
 import { useState } from "react";
-import { Package, Truck, Receipt, CheckCircle2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Package, Truck, Receipt, CheckCircle2, AlertCircle, Lock, SplitSquareHorizontal, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/features/auth/auth-context";
+import { toast } from "sonner";
 
 export default function OperationsPage() {
   const { data: orders, isLoading: isLoadingOrders } = usePendingOrders();
@@ -11,6 +14,9 @@ export default function OperationsPage() {
 
   const { data: recommendation, isLoading: isLoadingRec } = useFulfillmentRecommendation(selectedOrder?.id || null);
   const submitFulfillment = useSubmitFulfillment();
+  const { user } = useAuth();
+  
+  const isReadOnly = user?.role === "sales";
 
   if (isLoadingOrders) {
     return <div className="p-8 text-[13px] text-foreground-muted">Loading operations queue...</div>;
@@ -24,9 +30,10 @@ export default function OperationsPage() {
     
     try {
       await submitFulfillment.mutateAsync({ orderId: selectedOrder.id, allocations });
-      alert("Order fulfilled successfully!");
+      toast.success("Order fulfilled successfully!");
+      setSelectedOrder(null);
     } catch (e) {
-      alert("Failed to fulfill order.");
+      toast.error("Failed to fulfill order.");
     }
   };
 
@@ -39,6 +46,22 @@ export default function OperationsPage() {
             Operations & Fulfillment
           </h1>
           <p className="text-sm text-foreground-muted mt-1">Manage pending orders and generate fulfillment plans.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/finance/warehouse-split"
+            className="flex items-center gap-1.5 text-[13px] font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-primary-foreground px-3.5 py-1.5 rounded-md transition-colors shadow-xs"
+          >
+            <SplitSquareHorizontal className="w-4 h-4" />
+            Warehouse Split
+          </Link>
+          <Link
+            href="/finance/backorders"
+            className="flex items-center gap-1.5 text-[13px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500 hover:text-white px-3.5 py-1.5 rounded-md transition-colors shadow-xs"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Backorders
+          </Link>
         </div>
       </div>
 
@@ -124,13 +147,19 @@ export default function OperationsPage() {
                       ))}
                       
                       <div className="pt-4 flex justify-end">
-                        <button 
-                          onClick={handleFulfill}
-                          disabled={submitFulfillment.isPending}
-                          className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
-                        >
-                          {submitFulfillment.isPending ? "Processing..." : "Confirm & Deduct Stock"}
-                        </button>
+                        {isReadOnly ? (
+                          <div className="flex items-center gap-2 text-[13px] text-foreground-muted bg-muted px-4 py-2 rounded-md">
+                            <Lock className="w-4 h-4" /> Operations Team Only
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={handleFulfill}
+                            disabled={submitFulfillment.isPending}
+                            className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
+                          >
+                            {submitFulfillment.isPending ? "Processing..." : "Confirm & Deduct Stock"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : null}
@@ -159,12 +188,12 @@ export default function OperationsPage() {
                              headers: { 'Authorization': `Bearer ${localStorage.getItem('dealflow_token')}` }
                            });
                            if (res.ok) {
-                              alert('Invoice generated successfully!');
+                              toast.success('Invoice generated successfully!');
                            } else {
-                              alert('Failed to generate invoice.');
+                              toast.error('Failed to generate invoice.');
                            }
                          } catch (e) {
-                           alert('Error generating invoice.');
+                           toast.error('Error generating invoice.');
                          }
                       }}
                       className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"

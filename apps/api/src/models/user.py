@@ -1,50 +1,27 @@
-"""
-User SQLAlchemy model — the ONLY model in this initial migration.
-
-Column naming follows the agreed spec:
-  - id            UUID primary key (native PostgreSQL UUID type)
-  - name          VARCHAR(100)
-  - email         VARCHAR(255), unique, stored lowercase
-  - password_hash VARCHAR(255)  — bcrypt hash, never the plain password
-  - role          VARCHAR(30)
-  - is_active     BOOLEAN
-  - created_at    TIMESTAMPTZ
-  - updated_at    TIMESTAMPTZ
-
-Other developers: add new models in separate files inside src/models/ and
-import them in alembic/env.py so Alembic can detect them.
-"""
 import uuid
 from datetime import datetime, timezone
-
 from sqlalchemy import (
     Boolean,
+    Column,
     DateTime,
     Index,
     String,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
-
 from src.core.database import Base
 
+def generate_uuid():
+    return str(uuid.uuid4())
 
 class User(Base):
-    """
-    Application user.
-
-    Roles are validated at the application layer (see schemas/user.py).
-    The database stores the role as a plain VARCHAR for flexibility —
-    future migrations can migrate to a PostgreSQL ENUM if desired.
-    """
-
     __tablename__ = "users"
 
     # ── Primary key ────────────────────────────────────────────────────────────
     id: Mapped[str] = mapped_column(
         String(36),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=generate_uuid,
         index=True,
         comment="Unique user identifier (UUID v4)",
     )
@@ -109,11 +86,16 @@ class User(Base):
 
     # ── Additional composite indexes ───────────────────────────────────────────
     __table_args__ = (
-        # Fast lookup of active users by email (used on every login)
         Index("ix_users_email_active", "email", "is_active"),
     )
 
-    # ── Python helpers ─────────────────────────────────────────────────────────
+    @property
+    def hashed_password(self):
+        return self.password_hash
 
-    def __repr__(self) -> str:  # pragma: no cover
+    @hashed_password.setter
+    def hashed_password(self, value):
+        self.password_hash = value
+
+    def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r} role={self.role!r}>"

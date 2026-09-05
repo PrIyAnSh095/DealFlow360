@@ -11,7 +11,8 @@ class Deal(Base):
     __tablename__ = "deals"
 
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    customer_id = Column(String, ForeignKey("customers.id"), nullable=False)
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
+    customer_name = Column(String, nullable=True)
     value = Column(Numeric(10, 2), default=0.00)
     status = Column(String, default="draft", nullable=False) # Kanban column
     risk = Column(String, default="low") # low, medium, high

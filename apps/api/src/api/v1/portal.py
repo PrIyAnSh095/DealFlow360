@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any, Optional
 from src.core.database import get_db
 from src.models.quotation import Quotation, QuoteLine
 from src.models.deal import Deal
 from src.models.portal import QuoteMessage
-from src.schemas.portal import PublicQuotationResponse, QuoteMessageResponse, QuoteMessageCreate
+from src.schemas.portal import PublicQuotationResponse, QuoteMessageResponse, QuoteMessageCreate, PublicQuoteLineResponse
+from src.services.negotiation_service import process_customer_counter_offer
 
 router = APIRouter()
 
@@ -30,25 +31,25 @@ def get_public_quote(public_id: str, db: Session = Depends(get_db)):
     quote, deal = get_public_quote_or_404(public_id, db)
     
     # We do NOT include cost, margin, or risk_score here.
+    cust_company = deal.customer.company if (hasattr(deal, 'customer') and deal.customer) else getattr(deal, 'customer_name', 'Unknown')
+    cust_name = deal.customer.name if (hasattr(deal, 'customer') and deal.customer) else getattr(deal, 'customer_name', 'Unknown')
+
     resp = PublicQuotationResponse(
         id=quote.id,
         status=quote.status,
         subtotal=quote.subtotal,
         total_discount=quote.total_discount,
         total=quote.total,
-        deal_name=f"Quote for {deal.customer.company if deal.customer else 'Unknown'}",
-        customer_name=deal.customer.name if deal.customer else "Unknown",
+        deal_name=f"Quote for {cust_company}",
+        customer_name=cust_name,
         lines=[]
     )
     
     # Attach lines safely
     lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id).all()
-    # We can use the QuoteLine schema which includes product details
-    # The frontend needs to know product names
     for line in lines:
         from src.models.product import Product
         product = db.query(Product).filter(Product.id == line.product_id).first()
-        from src.schemas.portal import PublicQuoteLineResponse
         
         resp.lines.append(PublicQuoteLineResponse(
             id=line.id,
@@ -87,11 +88,34 @@ def post_quote_message(public_id: str, payload: QuoteMessageCreate, db: Session 
     db.refresh(msg)
     return msg
 
+@router.post("/quotes/{public_id}/counter")
+def counter_offer(
+    public_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Customer submits line discount counters and message.
+    Recalculates quote and routes for reapproval if thresholds are exceeded.
+    """
+    quote, deal = get_public_quote_or_404(public_id, db)
+    line_discounts = payload.get("line_discounts", {})
+    message = payload.get("message")
+    
+    updated_quote = process_customer_counter_offer(db, quote.id, line_discounts, message)
+    return {
+        "message": "Counter offer submitted successfully",
+        "quotation_id": updated_quote.id,
+        "status": updated_quote.status,
+        "total": updated_quote.total,
+        "requires_approval": updated_quote.requires_approval
+    }
+
 @router.post("/quotes/{public_id}/confirm")
 def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     quote, deal = get_public_quote_or_404(public_id, db)
     
-    if quote.status not in ["APPROVED", "SENT", "NEGOTIATION"]:
+    if quote.status not in ["APPROVED", "SENT", "NEGOTIATION", "CUSTOMER_REVIEW"]:
         raise HTTPException(status_code=400, detail="Quote cannot be confirmed in its current state")
         
     quote.status = "ACCEPTED"

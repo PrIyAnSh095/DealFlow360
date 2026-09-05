@@ -18,10 +18,25 @@ import {
   Tag,
   ShieldCheck,
   Link2,
-  Award
+  Award,
+  Building2,
+  SplitSquareHorizontal,
+  AlertTriangle,
 } from "lucide-react";
 
-export const navigation = [
+export interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  roles?: string[];
+}
+
+export interface NavSection {
+  name: string;
+  items: NavItem[];
+}
+
+export const navigation: NavSection[] = [
   {
     name: "Overview",
     items: [
@@ -40,6 +55,8 @@ export const navigation = [
     name: "Operations",
     items: [
       { name: "Fulfillment", href: "/operations", icon: Package },
+      { name: "Warehouse Split", href: "/finance/warehouse-split", icon: SplitSquareHorizontal },
+      { name: "Backorders", href: "/finance/backorders", icon: AlertTriangle },
       { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw },
       { name: "Invoices", href: "/invoices", icon: Receipt },
     ],
@@ -65,6 +82,8 @@ export const navigation = [
       { name: "Warehouses", href: "/warehouses", icon: Warehouse },
       { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard },
       { name: "Audit Logs", href: "/audit-logs", icon: History },
+      { name: "Org Onboarding", href: "/admin/onboarding", icon: Building2, roles: ["admin"] },
+      { name: "AI Data Privacy", href: "/admin/ai-config", icon: Settings2, roles: ["admin"] },
       { name: "Settings", href: "/settings", icon: Settings },
     ],
   },

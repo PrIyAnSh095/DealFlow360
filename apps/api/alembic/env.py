@@ -21,17 +21,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.core.config import get_settings
 from src.core.database import Base
 
-from src.models.user import User
-from src.models.customer import Customer
-from src.models.product import Product
-from src.models.deal import Deal
-from src.models.quotation import Quotation, QuoteLine
-from src.models.portal import QuoteMessage
-from src.models.approval import ApprovalRequest, ApprovalAuditLog
-from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
-from src.models.admin import PricingRule, SubscriptionPlan, GlobalSetting, Category, CustomerTier, DiscountPolicy, ApprovalRule, ApprovalChain
-from src.models.billing import Invoice, InvoiceLine, Subscription, Payment
-from src.models.audit import AuditLog
+# ─── Import all models so Alembic sees them ────────────────────────────────────
+import src.models  # noqa: F401
 
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -66,6 +57,7 @@ def run_migrations_offline() -> None:
         transaction_per_migration=True,
         compare_type=True,
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
@@ -88,6 +80,7 @@ def run_migrations_online() -> None:
             compare_type=True,          # Detect column type changes.
             compare_server_default=True, # Detect server_default changes.
         )
+
         with context.begin_transaction():
             context.run_migrations()
 
@@ -96,3 +89,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+

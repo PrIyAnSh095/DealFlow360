@@ -1,15 +1,24 @@
 "use client";
 
-import { redirect } from "next/navigation";
-import { mockQuotations } from "@/features/customer/mock-data";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { customerApi } from "@/features/customer/api";
 
-// /portal/negotiate redirects to the first active negotiating quotation
 export default function NegotiatePage() {
-  const negotiating = mockQuotations.find(
-    (q) => q.status === "negotiating" || q.status === "sent"
-  );
-  if (negotiating) {
-    redirect(`/portal/quotations/${negotiating.id}`);
-  }
-  redirect("/portal/quotations");
+  const router = useRouter();
+
+  useEffect(() => {
+    customerApi.getQuotations().then(quotes => {
+      const negotiating = quotes.find(
+        (q) => q.status === "NEGOTIATION" || q.status === "SENT"
+      );
+      if (negotiating) {
+        router.push(`/portal/quotations/${negotiating.id}`);
+      } else {
+        router.push("/portal/quotations");
+      }
+    });
+  }, [router]);
+
+  return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center">Redirecting...</div>;
 }

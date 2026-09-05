@@ -36,7 +36,7 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
         {navigation.map((section) => {
           const visibleItems = section.items.filter(item => 
-            !item.roles || (user && item.roles.includes(user.role))
+            !("roles" in item) || (user && (item as any).roles.includes(user.role))
           );
           
           if (visibleItems.length === 0) return null;

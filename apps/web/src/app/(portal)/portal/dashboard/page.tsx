@@ -126,7 +126,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-warning transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {mockOrders.length}
+            {orders.length}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Open Orders
@@ -144,7 +144,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-danger transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {mockInvoices.filter((i) => i.status === "sent" || i.status === "overdue").length}
+            0
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Invoices Due

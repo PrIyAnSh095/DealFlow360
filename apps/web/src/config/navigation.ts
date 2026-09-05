@@ -33,7 +33,7 @@ export const navigation = [
   {
     name: "Operations",
     items: [
-      { name: "Fulfillment", href: "/fulfillment", icon: Package },
+      { name: "Fulfillment", href: "/operations", icon: Package },
       { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw },
       { name: "Invoices", href: "/invoices", icon: Receipt },
     ],

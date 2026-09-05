@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.v1 import auth
+from src.api.v1 import auth, quotations, approvals, portal, operations
 from src.core.config import get_settings
 
 
@@ -52,6 +52,10 @@ def create_app() -> FastAPI:
 
     # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["Quotations"])
+    app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
+    app.include_router(portal.router, prefix="/api/v1/portal", tags=["Portal"])
+    app.include_router(operations.router, prefix="/api/v1/operations", tags=["Operations"])
 
     # ── Health check ──────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], include_in_schema=False)

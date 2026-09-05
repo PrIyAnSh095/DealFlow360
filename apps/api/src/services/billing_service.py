@@ -57,7 +57,7 @@ def generate_billing_schedules(db: Session, subscription_id: str):
 
 def generate_invoice_from_order(db: Session, order: Order) -> Invoice:
     quotation = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
-    subtotal = quotation.total if quotation else 0.0
+    subtotal = float(quotation.total) if (quotation and quotation.total is not None) else 0.0
     tax = round(subtotal * 0.18, 2) # 18% standard tax
     total = subtotal + tax
 
@@ -74,12 +74,15 @@ def generate_invoice_from_order(db: Session, order: Order) -> Invoice:
 
     if quotation:
         for line in quotation.lines:
+            qty = float(line.quantity)
+            u_price = float(line.unit_price) if line.unit_price is not None else 0.0
+            disc = float(line.discount_percent) if line.discount_percent is not None else 0.0
             inv_line = InvoiceLine(
                 invoice_id=inv.id,
                 description=line.product.name if line.product else "Item",
                 quantity=line.quantity,
-                unit_price=line.unit_price,
-                amount=round(line.quantity * line.unit_price * (1 - line.discount_percent / 100.0), 2)
+                unit_price=u_price,
+                amount=round(qty * u_price * (1 - disc / 100.0), 2)
             )
             db.add(inv_line)
         db.commit()

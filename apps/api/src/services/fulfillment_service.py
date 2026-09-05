@@ -26,12 +26,12 @@ def generate_fulfillment_plans(db: Session, order_id: str) -> Dict[str, Any]:
     shipping_options = shipping_service.get_shipping_rates()
 
     # Calculate total revenue and product cost
-    total_revenue = quotation.total
+    total_revenue = float(quotation.total) if quotation.total is not None else 0.0
     total_product_cost = 0.0
     for line in quotation.lines:
         p = db.query(Product).filter(Product.id == line.product_id).first()
-        if p:
-            total_product_cost += line.quantity * p.cost
+        if p and p.cost is not None:
+            total_product_cost += float(line.quantity) * float(p.cost)
 
     plans = []
     

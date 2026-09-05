@@ -15,15 +15,16 @@ def recalculate_quotation(db: Session, quotation: Quotation) -> Quotation:
 
     for line in quotation.lines:
         product = db.query(Product).filter(Product.id == line.product_id).first()
-        cost = product.cost if product and product.cost else 0.0
-        unit_price = line.unit_price if line.unit_price else (product.sales_price if product else 0.0)
+        cost = float(product.cost) if product and product.cost is not None else 0.0
+        unit_price = float(line.unit_price) if line.unit_price is not None else (float(product.sales_price) if product else 0.0)
+        discount_pct = float(line.discount_percent) if line.discount_percent is not None else 0.0
         
-        line_gross = line.quantity * unit_price
-        line_discount = line_gross * (line.discount_percent / 100.0)
+        line_gross = float(line.quantity) * unit_price
+        line_discount = line_gross * (discount_pct / 100.0)
         
         subtotal += line_gross
         total_discount += line_discount
-        total_cost += line.quantity * cost
+        total_cost += float(line.quantity) * cost
 
     total = subtotal - total_discount
     margin = total - total_cost

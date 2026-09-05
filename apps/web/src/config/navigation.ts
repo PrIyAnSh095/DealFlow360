@@ -13,17 +13,27 @@ import {
   Warehouse,
   CreditCard,
   Settings,
+  Users,
+  History,
+  Tag,
+  ShieldCheck,
+  Link2,
+  Award
 } from "lucide-react";
 
 export const navigation = [
   {
-    name: "Workspace",
+    name: "Overview",
     items: [
-      { name: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["sales", "manager", "finance", "admin"] },
-      { name: "Deals", href: "/deals", icon: Briefcase, roles: ["sales", "manager", "admin"] },
-      { name: "Pipeline", href: "/pipeline", icon: Briefcase, roles: ["sales", "manager", "admin"] },
-      { name: "Quotations", href: "/quotations", icon: FileText, roles: ["sales", "manager", "admin"] },
-      { name: "Approvals", href: "/approvals", icon: CheckSquare, roles: ["manager", "finance", "admin"] },
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    name: "Sales",
+    items: [
+      { name: "Deals", href: "/deals", icon: Briefcase },
+      { name: "Quotations", href: "/quotations", icon: FileText },
+      { name: "Approvals", href: "/approvals", icon: CheckSquare },
     ],
   },
   {
@@ -37,18 +47,25 @@ export const navigation = [
   {
     name: "Intelligence",
     items: [
-      { name: "Deal Health", href: "/health", icon: HeartPulse, roles: ["sales", "manager", "admin"] },
-      { name: "Analytics", href: "/analytics", icon: BarChart, roles: ["manager", "admin"] },
+      { name: "Deal Health", href: "/health", icon: HeartPulse },
+      { name: "Analytics", href: "/analytics", icon: BarChart },
     ],
   },
   {
     name: "Administration",
     items: [
-      { name: "Products", href: "/products", icon: Box, roles: ["admin"] },
-      { name: "Pricing Rules", href: "/pricing-rules", icon: Settings2, roles: ["manager", "admin"] },
-      { name: "Warehouses", href: "/warehouses", icon: Warehouse, roles: ["admin"] },
-      { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard, roles: ["admin"] },
-      { name: "Settings", href: "/settings", icon: Settings, roles: ["sales", "manager", "finance", "customer", "admin"] },
+      { name: "Users", href: "/users", icon: Users },
+      { name: "Products", href: "/products", icon: Box },
+      { name: "Categories", href: "/categories", icon: Tag },
+      { name: "Customer Tiers", href: "/customer-tiers", icon: Award },
+      { name: "Pricing Rules", href: "/pricing-rules", icon: Settings2 },
+      { name: "Discount Policies", href: "/discount-policies", icon: Settings2 },
+      { name: "Approval Rules", href: "/approval-rules", icon: ShieldCheck },
+      { name: "Approval Chains", href: "/approval-chains", icon: Link2 },
+      { name: "Warehouses", href: "/warehouses", icon: Warehouse },
+      { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard },
+      { name: "Audit Logs", href: "/audit-logs", icon: History },
+      { name: "Settings", href: "/settings", icon: Settings },
     ],
   },
 ];

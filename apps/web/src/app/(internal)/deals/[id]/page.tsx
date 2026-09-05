@@ -24,24 +24,25 @@ export default function DealPage() {
   const router = useRouter();
   const dealId = params.id as string;
   const { user } = useAuth();
+
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [dealLoading, setDealLoading] = useState(true);
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   
   const { data: products } = useProducts();
   const recalculateMutation = useRecalculateQuote();
   
-  const [deal, setDeal] = useState<Deal | null>(null);
-  const [dealLoading, setDealLoading] = useState(true);
   const [simulation, setSimulation] = useState<QuoteRecalculateResponse | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
-  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
   // AI Modal States
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isAILoading, setIsAILoading] = useState(false);
   const [aiData, setAIData] = useState<any>(null);
 
-  const { control, register, handleSubmit } = useForm<{ lines: QuoteLineInput[] }>({
+  const { control, register, handleSubmit, setValue } = useForm<{ lines: QuoteLineInput[] }>({
     defaultValues: {
       lines: [
         { product_id: "", quantity: 1, discount_percent: 0 }
@@ -49,19 +50,28 @@ export default function DealPage() {
     }
   });
 
+  useEffect(() => {
+    async function loadDealData() {
+      try {
+        setDealLoading(true);
+        const data = await dealsApi.getDeal(dealId);
+        setDeal(data);
+      } catch (err) {
+        console.error("Failed to load deal:", err);
+      } finally {
+        setDealLoading(false);
+      }
+    }
+    if (dealId) {
+      loadDealData();
+    }
+  }, [dealId]);
+
+  // Watch for changes in lines to trigger live recalculation
   const watchedLines = useWatch({
     control,
     name: "lines",
   });
-
-  useEffect(() => {
-    dealsApi.getDeal(dealId)
-      .then(setDeal)
-      .catch(err => {
-        toast.error("Failed to load deal information");
-      })
-      .finally(() => setDealLoading(false));
-  }, [dealId]);
 
   useEffect(() => {
     const validLines = watchedLines?.filter(l => l.product_id && l.product_id !== "") || [];
@@ -86,7 +96,7 @@ export default function DealPage() {
             setIsSimulating(false);
           }
         });
-      }, 500); // 500ms debounce
+      }, 500);
       
       return () => clearTimeout(timer);
     } else {
@@ -201,12 +211,8 @@ export default function DealPage() {
             <FileText className="w-4 h-4" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-[400px]">
-              {deal.customer?.name} - {deal.customer?.company}
-            </h1>
-            <p className="text-[12px] text-foreground-muted">
-              {activeQuoteId ? `Quote QT-${activeQuoteId.slice(0,6)}` : `Drafting for Deal ${dealId.substring(0,8)}`}
-            </p>
+            <h1 className="text-sm font-semibold text-foreground">Deal Workspace</h1>
+            <p className="text-[12px] text-foreground-muted">Drafting Quotation #{dealId.substring(0,8)}</p>
           </div>
         </div>
         
@@ -238,32 +244,20 @@ export default function DealPage() {
           >
             Cancel
           </Link>
-          
           <button 
             type="button"
             onClick={handleSubmit(onSave)}
-            disabled={isSaving}
-            className="h-8 px-3 rounded-md border border-primary text-primary text-[13px] font-medium flex items-center gap-1.5 hover:bg-primary/10 transition-colors disabled:opacity-50"
+            className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-[13px] font-medium flex items-center gap-1.5 hover:bg-primary/90 transition-colors"
           >
-            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            <Save className="w-3.5 h-3.5" />
             Save Quote
-          </button>
-
-          <button 
-            type="button"
-            onClick={onSubmitApproval}
-            disabled={isSubmittingAuth || !activeQuoteId}
-            className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-[13px] font-medium flex items-center gap-1.5 hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
-          >
-            {isSubmittingAuth ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            Submit
           </button>
         </div>
       </div>
 
       {/* Main Content Area - Split View */}
       <div className="flex-1 overflow-auto bg-muted/20">
-        <div className="max-w-[1200px] mx-auto p-6 h-full flex flex-col lg:flex-row items-start gap-6">
+        <div className="max-w-[1200px] mx-auto p-6 h-full flex items-start gap-6">
           
           {/* Left Column: Line Items */}
           <div className="flex-1 min-w-0 w-full">
@@ -309,4 +303,3 @@ export default function DealPage() {
     </div>
   );
 }
-

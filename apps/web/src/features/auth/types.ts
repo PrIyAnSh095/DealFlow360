@@ -16,16 +16,16 @@ export const signupSchema = z.object({
     .regex(/[a-z]/, 'Must contain at least one lowercase letter')
     .regex(/\d/, 'Must contain at least one number')
     .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, 'Must contain at least one special character'),
-  confirmPassword: z.string().min(1, 'Please confirm your password'),
-  role: z.enum(['sales', 'manager', 'finance', 'admin', 'customer']),
-}).refine((data) => data.password === data.confirmPassword, {
+  confirmPassword: z.string().optional(),
+  role: z.enum(['sales', 'manager', 'finance', 'admin', 'customer', 'sales_rep', 'sales_manager']),
+}).refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
 });
 
 export type SignupCredentials = z.infer<typeof signupSchema>;
 
-export type UserRole = 'sales' | 'manager' | 'finance' | 'customer' | 'admin';
+export type UserRole = 'sales' | 'manager' | 'finance' | 'customer' | 'admin' | 'sales_rep' | 'sales_manager';
 
 export interface User {
   id: string;
@@ -34,4 +34,3 @@ export interface User {
   role: UserRole;
   isActive: boolean;
 }
-

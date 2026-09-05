@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
+
 from src.core.database import get_db
+from src.api.deps import RoleChecker
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
+from src.models.user import User
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
 from src.schemas.operations import (
-    OrderResponse, WarehouseResponse, 
+    OrderResponse, WarehouseResponse, WarehouseCreate, WarehouseUpdate,
     FulfillmentRecommendationResponse, FulfillmentRecommendationLine, 
     FulfillmentAllocationInput, FulfillmentRequest
 )
@@ -17,10 +20,43 @@ from src.services.ai_service import ai_service
 
 router = APIRouter()
 
+# --- WAREHOUSES ---
 @router.get("/warehouses", response_model=List[WarehouseResponse])
 def get_warehouses(db: Session = Depends(get_db)):
     return db.query(Warehouse).all()
 
+@router.post("/warehouses", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)
+def create_warehouse(warehouse_in: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = Warehouse(**warehouse_in.model_dump())
+    db.add(db_warehouse)
+    db.commit()
+    db.refresh(db_warehouse)
+    return db_warehouse
+
+@router.patch("/warehouses/{warehouse_id}", response_model=WarehouseResponse)
+def update_warehouse(warehouse_id: str, warehouse_in: WarehouseUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not db_warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+        
+    update_data = warehouse_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_warehouse, field, value)
+        
+    db.commit()
+    db.refresh(db_warehouse)
+    return db_warehouse
+
+@router.delete("/warehouses/{warehouse_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_warehouse(warehouse_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not db_warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+        
+    db.delete(db_warehouse)
+    db.commit()
+
+# --- ORDERS & FULFILLMENT ---
 @router.get("/orders", response_model=List[OrderResponse])
 def get_pending_orders(db: Session = Depends(get_db)):
     orders = db.query(Order).all()
@@ -28,14 +64,15 @@ def get_pending_orders(db: Session = Depends(get_db)):
     for order in orders:
         quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
         deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+        cust_name = deal.customer_name if (deal and hasattr(deal, 'customer_name') and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Unknown")
         
         resp.append(OrderResponse(
             id=order.id,
             quotation_id=order.quotation_id,
             status=order.status,
             created_at=order.created_at,
-            customer_name=deal.customer_name if deal else "Unknown",
-            deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+            customer_name=cust_name,
+            deal_name=f"Order for {cust_name}"
         ))
     return resp
 
@@ -47,13 +84,15 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
         
     existing_order = db.query(Order).filter(Order.quotation_id == quotation_id).first()
     if existing_order:
+        deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+        cust_name = deal.customer_name if (deal and hasattr(deal, 'customer_name') and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Unknown")
         return OrderResponse(
             id=existing_order.id,
             quotation_id=existing_order.quotation_id,
             status=existing_order.status,
             created_at=existing_order.created_at,
-            customer_name="Customer",
-            deal_name=f"Order {existing_order.id}"
+            customer_name=cust_name,
+            deal_name=f"Order for {cust_name}"
         )
         
     order = Order(quotation_id=quotation_id, status="pending_fulfillment")
@@ -61,14 +100,15 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(order)
     
-    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
+    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+    cust_name = deal.customer_name if (deal and hasattr(deal, 'customer_name') and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Unknown")
     return OrderResponse(
         id=order.id,
         quotation_id=order.quotation_id,
         status=order.status,
         created_at=order.created_at,
-        customer_name=deal.customer_name if deal else "Unknown",
-        deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+        customer_name=cust_name,
+        deal_name=f"Order for {cust_name}"
     )
 
 @router.get("/fulfillment/plans/{order_id}")
@@ -105,7 +145,6 @@ def recommend_fulfillment(order_id: str, db: Session = Depends(get_db)):
         raise HTTPException(404, "Order not found")
         
     lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == order.quotation_id).all()
-    
     recommended_lines = []
     
     for line in lines:
@@ -113,7 +152,6 @@ def recommend_fulfillment(order_id: str, db: Session = Depends(get_db)):
         qty_needed = line.quantity
         
         stocks = db.query(Stock).filter(Stock.product_id == line.product_id).order_by(Stock.quantity_on_hand.desc()).all()
-        
         allocations = []
         remaining = qty_needed
         

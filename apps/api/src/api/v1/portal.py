@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from typing import List, Dict, Optional
+from typing import List, Dict, Any, Optional
 from src.core.database import get_db
 from src.models.quotation import Quotation, QuoteLine
 from src.models.deal import Deal
@@ -13,6 +13,7 @@ router = APIRouter()
 def get_public_quote_or_404(public_id: str, db: Session) -> tuple[Quotation, Deal]:
     quote = db.query(Quotation).filter(Quotation.id == public_id).first()
     
+    # Fallback for MVP: if public_id is actually a deal_id, find the latest quote for that deal
     if not quote:
         quote = db.query(Quotation).filter(Quotation.deal_id == public_id).order_by(Quotation.created_at.desc()).first()
         
@@ -29,17 +30,22 @@ def get_public_quote_or_404(public_id: str, db: Session) -> tuple[Quotation, Dea
 def get_public_quote(public_id: str, db: Session = Depends(get_db)):
     quote, deal = get_public_quote_or_404(public_id, db)
     
+    # We do NOT include cost, margin, or risk_score here.
+    cust_company = deal.customer.company if (hasattr(deal, 'customer') and deal.customer) else getattr(deal, 'customer_name', 'Unknown')
+    cust_name = deal.customer.name if (hasattr(deal, 'customer') and deal.customer) else getattr(deal, 'customer_name', 'Unknown')
+
     resp = PublicQuotationResponse(
         id=quote.id,
         status=quote.status,
         subtotal=quote.subtotal,
         total_discount=quote.total_discount,
         total=quote.total,
-        deal_name=f"Quote for {deal.customer_name}",
-        customer_name=deal.customer_name,
+        deal_name=f"Quote for {cust_company}",
+        customer_name=cust_name,
         lines=[]
     )
     
+    # Attach lines safely
     lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id).all()
     for line in lines:
         from src.models.product import Product
@@ -74,6 +80,7 @@ def post_quote_message(public_id: str, payload: QuoteMessageCreate, db: Session 
     )
     db.add(msg)
     
+    # Change status to NEGOTIATION if the customer comments on a PENDING or APPROVED quote
     if payload.sender_type == "CUSTOMER" and quote.status in ["APPROVED", "SENT"]:
         quote.status = "NEGOTIATION"
         
@@ -114,6 +121,15 @@ def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     quote.status = "ACCEPTED"
     deal.status = "won"
     
+    # Create the Order
+    from src.models.operations import Order
+    new_order = Order(
+        quotation_id=quote.id,
+        status="pending_fulfillment"
+    )
+    db.add(new_order)
+    
+    # Log the action automatically as a message
     msg = QuoteMessage(
         quotation_id=quote.id,
         content="Customer formally accepted the quotation.",
@@ -122,4 +138,4 @@ def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     db.add(msg)
     
     db.commit()
-    return {"message": "Quote accepted successfully"}
+    return {"message": "Quote accepted and Order created successfully"}

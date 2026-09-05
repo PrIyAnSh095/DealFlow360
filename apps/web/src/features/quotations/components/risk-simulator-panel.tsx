@@ -44,8 +44,8 @@ export function RiskSimulatorPanel({ simulation, isLoading }: RiskSimulatorPanel
           <h3 className="text-[14px] font-semibold text-foreground">Deal Simulation</h3>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-[12px] text-foreground-muted">Live Margin:</span>
-            <span className={`text-[13px] font-bold ${margin_percentage < 20 ? 'text-warning' : 'text-success'}`}>
-              {margin_percentage.toFixed(1)}%
+            <span className={`text-[13px] font-bold ${Number(margin_percentage) < 20 ? 'text-warning' : 'text-success'}`}>
+              {Number(margin_percentage).toFixed(1)}%
             </span>
           </div>
         </div>

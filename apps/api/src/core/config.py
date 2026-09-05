@@ -7,6 +7,7 @@ No secrets are hardcoded here.
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+from functools import lru_cache
 
 # Locate root directory containing .env
 # config.py is at: <root>/apps/api/src/core/config.py

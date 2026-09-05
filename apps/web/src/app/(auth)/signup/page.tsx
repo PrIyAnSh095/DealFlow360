@@ -19,16 +19,24 @@ export default function SignupPage() {
   } = useForm<SignupCredentials>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      role: 'sales'
+      role: 'customer'
     }
   });
 
   const onSubmit = async (data: SignupCredentials) => {
     try {
       setError(null);
-      await signup(data);
+      // Force customer role for self-registration, ignoring any manipulated form data
+      await signup({ ...data, role: 'customer' });
     } catch (err: any) {
-      setError(err?.response?.data?.detail || "Failed to create account. Please try again.");
+      const detail = err?.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        setError(detail.map((e: any) => e.msg).join(", "));
+      } else if (typeof detail === "string") {
+        setError(detail);
+      } else {
+        setError("Failed to create account. Please try again.");
+      }
     }
   };
 
@@ -120,26 +128,7 @@ export default function SignupPage() {
           )}
         </div>
         
-        <div className="space-y-1.5">
-          <label className="text-[13px] font-medium text-foreground" htmlFor="role">
-            Requested role
-          </label>
-          <select
-            {...register("role")}
-            id="role"
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isSubmitting}
-          >
-            <option value="sales">Sales Representative</option>
-            <option value="manager">Sales Manager</option>
-            <option value="finance">Finance</option>
-            <option value="admin">Administrator</option>
-            <option value="customer">Customer</option>
-          </select>
-          {errors.role && (
-            <p className="text-[12px] font-medium text-danger">{errors.role.message}</p>
-          )}
-        </div>
+
 
         <button
           type="submit"

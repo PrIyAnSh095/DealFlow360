@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from decimal import Decimal
 
 from src.core.database import get_db
@@ -9,7 +9,7 @@ from src.core.security import get_current_user
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
-from src.models.approval import ApprovalAuditLog
+from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.services.pricing_service import recalculate_quotation
 from src.services.approval_service import submit_quote_for_approval
 from src.services.ai_service import ai_service
@@ -147,7 +147,6 @@ def recalculate_quote_endpoint(
         raise HTTPException(status_code=404, detail="Quotation not found")
 
     if request and request.lines:
-        # Update existing lines or replace
         db.query(QuoteLine).filter(QuoteLine.quotation_id == quotation_id).delete()
         for line_in in request.lines:
             product = db.query(Product).filter(Product.id == line_in.product_id).first()
@@ -201,6 +200,7 @@ def submit_quote(
     recalculate_quotation(db, q)
 
     user_id = current_user.get("sub") if isinstance(current_user, dict) else getattr(current_user, "id", "u-sales")
+    user_role = current_user.get("role", "sales") if isinstance(current_user, dict) else getattr(current_user, "role", "sales")
 
     if q.requires_approval:
         app_req = submit_quote_for_approval(db, quotation_id, requester_id=user_id)
@@ -210,12 +210,12 @@ def submit_quote(
         audit = ApprovalAuditLog(
             deal_id=deal.id if deal else q.deal_id,
             action="submit",
-            role=current_user.get("role", "sales") if isinstance(current_user, dict) else getattr(current_user, "role", "sales"),
+            role=user_role,
             notes="Submitted for approval by Sales Rep"
         )
         db.add(audit)
         db.commit()
-        return {"status": "SUBMITTED_FOR_APPROVAL", "approval_request_id": app_req.id, "risk_score": q.risk_score}
+        return {"status": "SUBMITTED_FOR_APPROVAL", "approval_request_id": getattr(app_req, "id", None), "risk_score": q.risk_score}
     else:
         q.status = "APPROVED"
         if deal:
@@ -258,5 +258,3 @@ def get_quotation_ai_explanation(
     )
 
     return explanation
-
-

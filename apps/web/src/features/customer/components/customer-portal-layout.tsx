@@ -39,7 +39,6 @@ const customerNav = [
     section: "Orders & Billing",
     items: [
       { name: "My Orders", href: "/portal/orders", icon: ShoppingBag },
-      { name: "Order Details", href: "/portal/orders/o1", icon: Truck },
       { name: "Invoices", href: "/portal/invoices", icon: Receipt },
       { name: "Subscriptions", href: "/portal/subscriptions", icon: RefreshCcw },
     ],
@@ -250,9 +249,7 @@ export function CustomerPortalLayout({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {/* Theme Toggle in Header (White / Dark Mode) */}
             <ThemeToggle className="h-8 w-8 flex items-center justify-center" />
-
             <button className="relative p-2 rounded-md hover:bg-muted text-foreground-muted hover:text-foreground transition-colors" title="Notifications">
               <Bell className="h-4 w-4" />
               <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full ring-2 ring-surface" />

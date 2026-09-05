@@ -1,8 +1,14 @@
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import uuid
+from decimal import Decimal
+from datetime import datetime, timedelta
+
+# Append the directory above `apps/api` so we can import `src`
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 from src.core.database import SessionLocal, Base, engine
+from src.core.security import get_password_hash
 from src.models.user import User
 from src.models.customer import CustomerTier, Customer
 from src.models.product import Product
@@ -10,14 +16,14 @@ from src.models.pricing import Category, PriceList, PriceListItem, DiscountPolic
 from src.models.deal import Deal
 from src.models.quotation import Quotation, QuoteLine
 from src.models.approval import ApprovalRequest, ApprovalAuditLog
-from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
+from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation, Backorder
 from src.models.billing import SubscriptionPlan, Subscription, SubscriptionLine, BillingScheduleItem, Invoice, InvoiceLine, Payment
+from src.models.portal import QuoteMessage
 from src.models.audit import AuditEvent
 from src.models.ai_config import CompanyAIConfig
-from src.core.security import get_password_hash
+from src.models.organization import OrganizationProfile
 
 def seed_db():
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     
     print("Checking database seed state...")
@@ -30,7 +36,6 @@ def seed_db():
         db.commit()
 
     # 1. Seed Users (RBAC: sales, manager, finance, admin, customer)
-
     if db.query(User).count() == 0:
         print("Seeding users...")
         users = [

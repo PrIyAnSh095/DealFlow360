@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   RefreshCcw,
   CheckCircle2,
@@ -12,7 +12,6 @@ import {
   ArrowUpRight,
   AlertTriangle,
 } from "lucide-react";
-import { mockSubscriptions } from "@/features/customer/mock-data";
 import { Subscription } from "@/features/customer/types";
 import { cn } from "@/lib/utils";
 
@@ -255,11 +254,24 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
 }
 
 export default function SubscriptionsPage() {
-  const active = mockSubscriptions.filter(
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    import("@/features/customer/api").then(({ customerApi }) => {
+      customerApi.getSubscriptions().then(setSubscriptions).finally(() => setIsLoading(false));
+    });
+  }, []);
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-[60vh]">Loading subscriptions...</div>;
+  }
+
+  const active = subscriptions.filter(
     (s) => s.status === "active" || s.status === "trial"
   );
-  const cancelled = mockSubscriptions.filter((s) => s.status === "cancelled");
-  const totalMRR = mockSubscriptions
+  const cancelled = subscriptions.filter((s) => s.status === "cancelled");
+  const totalMRR = subscriptions
     .filter((s) => s.status === "active" && s.billingCycle === "monthly")
     .reduce((acc, s) => acc + s.amount, 0);
 
@@ -289,6 +301,15 @@ export default function SubscriptionsPage() {
           </div>
         </div>
       </div>
+
+      {subscriptions.length === 0 && (
+        <div className="bg-surface border border-border rounded-lg p-12 text-center mt-4">
+          <RefreshCcw className="w-10 h-10 text-foreground-muted mx-auto mb-3" />
+          <p className="text-[14px] font-medium text-foreground">
+            No subscriptions found
+          </p>
+        </div>
+      )}
 
       {/* Active */}
       {active.length > 0 && (

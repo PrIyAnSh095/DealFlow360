@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.v1 import (
@@ -6,23 +7,34 @@ from src.api.v1 import (
     approvals,
     portal,
     operations,
+    analytics,
+    customers,
+    search,
+    health,
     deals,
+    admin,
+    billing,
+    dashboard,
+    intelligence,
     subscriptions,
     invoices,
     health_intelligence,
-    admin,
-    customers,
-    dashboard,
-    search,
-    health,
 )
 from src.core.database import engine, Base
 import src.models
 
-# Register DB tables
+# Auto-create tables for local development/testing
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="DealFlow360 API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+app = FastAPI(
+    title="DealFlow360 API",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
 # CORS config
 app.add_middleware(
@@ -38,6 +50,7 @@ app.include_router(deals.router, prefix="/api/v1/deals", tags=["deals"])
 app.include_router(customers.router, prefix="/api/v1/customers", tags=["customers"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
+app.include_router(health.router, prefix="/api/v1/health", tags=["health"])
 app.include_router(health.router, prefix="/api/v1/health-system", tags=["health-system"])
 app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["quotations"])
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
@@ -45,10 +58,12 @@ app.include_router(portal.router, prefix="/api/v1/portal", tags=["portal"])
 app.include_router(operations.router, prefix="/api/v1/operations", tags=["operations"])
 app.include_router(subscriptions.router, prefix="/api/v1/subscriptions", tags=["subscriptions"])
 app.include_router(invoices.router, prefix="/api/v1/invoices", tags=["invoices"])
-app.include_router(health_intelligence.router, prefix="/api/v1", tags=["intelligence"])
+app.include_router(health_intelligence.router, prefix="/api/v1", tags=["health_intelligence"])
+app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
-
+    return {"status": "ok", "version": "1.0.0"}

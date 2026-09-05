@@ -13,9 +13,10 @@ import {
   ChevronRight,
   MessageSquareDiff,
 } from "lucide-react";
-import { mockQuotations, mockOrders, mockInvoices, mockSubscriptions } from "@/features/customer/mock-data";
+import { useEffect, useState } from "react";
+import { customerApi, CustomerQuotation, CustomerOrder } from "@/features/customer/api";
 import { cn } from "@/lib/utils";
-import { ThemeSegmentedToggle } from "@/components/ui/theme-toggle";
+
 
 function formatINR(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -27,23 +28,16 @@ function formatINR(value: number) {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    sent: "bg-primary/10 text-primary border-primary/20",
-    under_review: "bg-warning/10 text-warning border-warning/20",
-    negotiating: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
-    approved: "bg-success/10 text-success border-success/20",
-    rejected: "bg-danger/10 text-danger border-danger/20",
-    expired: "bg-muted text-foreground-muted border-border",
-    confirmed: "bg-success/10 text-success border-success/20",
-    processing: "bg-primary/10 text-primary border-primary/20",
-    partially_shipped: "bg-warning/10 text-warning border-warning/20",
-    shipped: "bg-primary/10 text-primary border-primary/20",
-    delivered: "bg-success/10 text-success border-success/20",
-    cancelled: "bg-danger/10 text-danger border-danger/20",
-    paid: "bg-success/10 text-success border-success/20",
-    active: "bg-success/10 text-success border-success/20",
-    trial: "bg-warning/10 text-warning border-warning/20",
+    PENDING_APPROVAL: "bg-warning/10 text-warning border-warning/20",
+    APPROVED: "bg-success/10 text-success border-success/20",
+    SENT: "bg-primary/10 text-primary border-primary/20",
+    NEGOTIATION: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
+    ACCEPTED: "bg-success/10 text-success border-success/20",
+    REJECTED: "bg-danger/10 text-danger border-danger/20",
+    pending_fulfillment: "bg-warning/10 text-warning border-warning/20",
+    fulfilled: "bg-success/10 text-success border-success/20",
   };
-  const label = status.replace(/_/g, " ");
+  const label = status.replace(/_/g, " ").toLowerCase();
   return (
     <span
       className={cn(
@@ -57,16 +51,36 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CustomerDashboardPage() {
-  const pendingNegotiations = mockQuotations.filter(
-    (q) => q.negotiationRequests.filter((r) => r.status === "pending").length > 0
-  );
-  const overdueInvoices = mockInvoices.filter((i) => i.status === "overdue");
-  const activeSubscriptions = mockSubscriptions.filter(
-    (s) => s.status === "active"
-  );
-  const totalMonthlyRecurring = mockSubscriptions
-    .filter((s) => s.status === "active" && s.billingCycle === "monthly")
-    .reduce((acc, s) => acc + s.amount, 0);
+  const [quotations, setQuotations] = useState<CustomerQuotation[]>([]);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      customerApi.getQuotations(),
+      customerApi.getOrders(),
+      customerApi.getInvoices(),
+      customerApi.getSubscriptions()
+    ]).then(([qData, oData, iData, sData]) => {
+      setQuotations(qData);
+      setOrders(oData);
+      setInvoices(iData);
+      setSubscriptions(sData);
+    }).finally(() => {
+      setIsLoading(false);
+    });
+  }, []);
+
+  const pendingNegotiations = quotations.filter((q) => q.status === "NEGOTIATION");
+  const overdueInvoices = invoices.filter((i) => i.status === "UNPAID" || i.status === "overdue" || i.status === "pending");
+  const activeSubscriptions = subscriptions.filter((s) => s.status === "ACTIVE" || s.status === "active");
+  const totalMonthlyRecurring = activeSubscriptions.reduce((sum, sub) => sum + (sub.amount || 0), 0);
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading portal...</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,17 +88,14 @@ export default function CustomerDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Welcome back, Aryan 👋
+            Welcome back 👋
           </h1>
           <p className="text-[13px] text-foreground-muted mt-1">
             Here's an overview of your quotes, orders, and subscriptions.
           </p>
         </div>
 
-        {/* Theme Mode Toggle (White / Dark) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <ThemeSegmentedToggle />
-        </div>
+
       </div>
 
       {/* Stat cards */}
@@ -100,7 +111,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-primary transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {mockQuotations.length}
+            {quotations.length}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Active Quotations
@@ -118,7 +129,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-warning transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {mockOrders.length}
+            {orders.length}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Open Orders
@@ -136,7 +147,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-danger transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {mockInvoices.filter((i) => i.status === "sent" || i.status === "overdue").length}
+            {overdueInvoices.length}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Invoices Due
@@ -180,7 +191,7 @@ export default function CustomerDashboardPage() {
               </Link>
             </div>
             <div className="divide-y divide-border">
-              {mockQuotations.map((q) => (
+              {quotations.map((q) => (
                 <div
                   key={q.id}
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/50 transition-colors"
@@ -188,23 +199,23 @@ export default function CustomerDashboardPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-[13px] font-medium text-foreground truncate">
-                        {q.title}
+                        {q.deal_name}
                       </p>
                       <StatusBadge status={q.status} />
                     </div>
                     <p className="text-[12px] text-foreground-muted mt-0.5">
-                      {q.quotationNumber} · Valid until {q.validUntil}
+                      {q.id.slice(0, 8)}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[13px] font-semibold text-foreground">
-                      {formatINR(q.grandTotal)}
+                      {formatINR(q.total)}
                     </p>
                     <Link
                       href={`/portal/quotations/${q.id}`}
                       className="text-[12px] text-primary hover:underline"
                     >
-                      {q.status === "negotiating" ? "Negotiate →" : "View →"}
+                      {q.status === "NEGOTIATION" ? "Negotiate →" : "View →"}
                     </Link>
                   </div>
                 </div>
@@ -227,7 +238,7 @@ export default function CustomerDashboardPage() {
               </Link>
             </div>
             <div className="divide-y divide-border">
-              {mockOrders.map((o) => (
+              {orders.map((o) => (
                 <div
                   key={o.id}
                   className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/50 transition-colors"
@@ -235,18 +246,15 @@ export default function CustomerDashboardPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="text-[13px] font-medium text-foreground truncate">
-                        {o.title}
+                        {o.deal_name}
                       </p>
                       <StatusBadge status={o.status} />
                     </div>
                     <p className="text-[12px] text-foreground-muted mt-0.5">
-                      {o.orderNumber} · Placed {o.placedAt}
+                      {o.id.slice(0, 8)} · Placed {new Date(o.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[13px] font-semibold text-foreground">
-                      {formatINR(o.total)}
-                    </p>
                     <Link
                       href={`/portal/orders/${o.id}`}
                       className="text-[12px] text-primary hover:underline"
@@ -281,7 +289,7 @@ export default function CustomerDashboardPage() {
                         Negotiation pending response
                       </p>
                       <p className="text-[12px] text-foreground-muted">
-                        {q.quotationNumber} — {q.title}
+                        {q.id.slice(0,8)} — {q.deal_name}
                       </p>
                     </div>
                     <Link
@@ -303,8 +311,7 @@ export default function CustomerDashboardPage() {
               Upcoming Invoices
             </h2>
             <div className="space-y-3">
-              {mockInvoices
-                .filter((i) => i.status === "sent" || i.status === "overdue")
+              {overdueInvoices
                 .map((inv) => (
                   <div
                     key={inv.id}
@@ -312,17 +319,17 @@ export default function CustomerDashboardPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium text-foreground truncate">
-                        {inv.invoiceNumber}
+                        {inv.invoice_number || inv.id.slice(0,8)}
                       </p>
                       <p className="text-[11px] text-foreground-muted">
-                        Due {inv.dueDate}
+                        Due {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}
                       </p>
                     </div>
                     <div className="text-right ml-4 shrink-0">
                       <p
                         className={cn(
                           "text-[13px] font-semibold",
-                          inv.status === "overdue"
+                          inv.status === "overdue" || inv.status === "UNPAID"
                             ? "text-danger"
                             : "text-foreground"
                         )}
@@ -354,7 +361,7 @@ export default function CustomerDashboardPage() {
                 <div key={sub.id} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[13px] font-medium text-foreground">
-                      {sub.productName}
+                      {sub.product_name || "Subscription"}
                     </p>
                     <p className="text-[13px] font-semibold text-foreground">
                       {formatINR(sub.amount)}/mo
@@ -372,7 +379,7 @@ export default function CustomerDashboardPage() {
                     </span>
                   </div>
                   <p className="text-[11px] text-foreground-muted">
-                    Renews {sub.nextBillingDate}
+                    Renews {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'Next Month'}
                   </p>
                 </div>
               ))}

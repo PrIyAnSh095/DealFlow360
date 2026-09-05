@@ -2,7 +2,7 @@ import hashlib
 import re
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Tuple
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
@@ -51,7 +51,9 @@ def generate_secure_password(length: int = 16) -> str:
     return "".join(password_chars)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return get_password_hash(plain_password) == hashed_password
+    if get_password_hash(plain_password) == hashed_password:
+        return True
+    return False
 
 def get_password_hash(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -116,4 +118,3 @@ def require_roles(allowed_roles: List[str]):
             )
         return current_user
     return role_checker
-

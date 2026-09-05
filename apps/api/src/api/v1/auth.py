@@ -1,12 +1,16 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+
 from src.core.database import get_db
-from src.core.security import verify_password, get_password_hash, create_access_token, get_current_user, validate_password_strength, generate_secure_password
+from src.core.security import (
+    verify_password, get_password_hash, create_access_token, get_current_user,
+    validate_password_strength, generate_secure_password
+)
 from src.models.user import User
 from src.services.audit_service import log_audit_event
-from src.schemas.user import UserResponse, UserUpdate
+from src.schemas.user import UserResponse, UserUpdate, MessageResponse
 
 router = APIRouter()
 
@@ -41,7 +45,7 @@ def signup(body: RegisterRequest, db: Session = Depends(get_db)):
             detail=error_msg,
         )
 
-    existing = db.query(User).filter(User.email == body.email).first()
+    existing = db.query(User).filter(User.email == body.email.lower()).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -50,7 +54,7 @@ def signup(body: RegisterRequest, db: Session = Depends(get_db)):
     
     hashed = get_password_hash(body.password)
     user = User(
-        email=body.email,
+        email=body.email.lower(),
         hashed_password=hashed,
         name=body.name,
         role=body.role or "sales"
@@ -82,8 +86,8 @@ def signup(body: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == body.email).first()
-    if not user or not verify_password(body.password, user.hashed_password):
+    user = db.query(User).filter(User.email == body.email.lower()).first()
+    if not user or not verify_password(body.password, user.hashed_password if hasattr(user, 'hashed_password') and user.hashed_password else getattr(user, 'password_hash', '')):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -95,7 +99,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         action="USER_LOGIN",
         entity_type="User",
         entity_id=user.id,
-        details=f"User logged in successfully"
+        details="User logged in successfully"
     )
 
     token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role, "name": user.name})
@@ -110,13 +114,17 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
         }
     }
 
+@router.post("/logout")
+def logout(current_user: dict = Depends(get_current_user)):
+    return {"message": "Successfully logged out. Please discard your token."}
+
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
 
 @router.patch("/me")
 def update_me(
-    user_in: UserUpdate,
+    body: UserUpdate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -125,9 +133,11 @@ def update_me(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
-    update_data = user_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(user, field, value)
+    update_data = body.model_dump(exclude_unset=True)
+    if "name" in update_data and update_data["name"] is not None:
+        user.name = update_data["name"]
+    if "role" in update_data and update_data["role"] is not None and current_user.get("role") == "admin":
+        user.role = update_data["role"]
         
     db.commit()
     db.refresh(user)
@@ -137,4 +147,3 @@ def update_me(
         "name": user.name,
         "role": user.role
     }
-

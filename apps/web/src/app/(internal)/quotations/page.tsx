@@ -112,7 +112,7 @@ export default function QuotationsPage() {
                           {quote.status}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <Link href={`/quotations/${quote.id}`} className="text-primary font-medium hover:underline">
+                          <Link href={`/deals/${quote.deal_id}`} className="text-primary font-medium hover:underline">
                             Open
                           </Link>
                         </td>

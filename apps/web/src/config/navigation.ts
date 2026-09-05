@@ -5,7 +5,7 @@ import {
   CheckSquare,
   Package,
   RefreshCcw,
-  FileInvoice,
+  Receipt,
   HeartPulse,
   BarChart,
   Box,
@@ -35,7 +35,7 @@ export const navigation = [
     items: [
       { name: "Fulfillment", href: "/fulfillment", icon: Package },
       { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw },
-      { name: "Invoices", href: "/invoices", icon: FileInvoice },
+      { name: "Invoices", href: "/invoices", icon: Receipt },
     ],
   },
   {

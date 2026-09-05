@@ -30,10 +30,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # ── Database ───────────────────────────────────────────────────────────────
-    DATABASE_URL: str  # Required — no default. Must be set in .env or environment.
+    DATABASE_URL: str = "sqlite:///./dealflow360.db"  # Read from .env or environment; falls back to local SQLite for dev
 
     # ── Authentication (JWT) ───────────────────────────────────────────────────
-    AUTH_SECRET: str  # Required — no default. Generate with: openssl rand -hex 32
+    AUTH_SECRET: str = "super-secret-key-for-dealflow360-dev-only-min-32-chars"  # Read from .env or environment
     JWT_ALGORITHM: str = "HS256"
     # Token lifetime in minutes. Default: 7 days (convenient for dev).
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
@@ -42,8 +42,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(
-        # Look for .env in repo root, local api dir, or cwd
-        env_file=[str(_ENV_FILE_PATH), ".env"],
+        # Look for .env in repo root, local api dir, or current working directory
+        env_file=[str(_REPO_ROOT / ".env"), str(_API_ROOT / ".env"), ".env"],
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",  # silently ignore unknown vars (e.g. AI_ENABLED)

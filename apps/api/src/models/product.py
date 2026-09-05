@@ -12,9 +12,9 @@ class Product(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
     sku = Column(String, unique=True, index=True, nullable=False)
-    category = Column(String, nullable=False) # e.g. "hardware", "service", "software"
-    sales_price = Column(Numeric(10, 2), nullable=False)
-    cost = Column(Numeric(10, 2), nullable=False)
+    category = Column(String, default="hardware", nullable=True) # e.g. "hardware", "service", "software"
+    sales_price = Column(Float, nullable=False)
+    cost = Column(Float, nullable=False)
     active = Column(Boolean, default=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

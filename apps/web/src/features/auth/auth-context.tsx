@@ -45,10 +45,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: authApi.logout,
+    mutationFn: async () => {
+      try {
+        await authApi.logout();
+      } catch (err) {
+        console.error("Logout API call error:", err);
+      } finally {
+        localStorage.removeItem("dealflow_token");
+      }
+    },
     onSuccess: () => {
       queryClient.setQueryData(["auth", "me"], null);
-      router.push("/login");
+      queryClient.clear();
+      router.replace("/login");
+    },
+    onError: () => {
+      localStorage.removeItem("dealflow_token");
+      queryClient.setQueryData(["auth", "me"], null);
+      queryClient.clear();
+      router.replace("/login");
     },
   });
 
@@ -61,7 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await logoutMutation.mutateAsync();
+    try {
+      await logoutMutation.mutateAsync();
+    } catch {
+      localStorage.removeItem("dealflow_token");
+      queryClient.setQueryData(["auth", "me"], null);
+      queryClient.clear();
+      router.replace("/login");
+    }
   };
 
   return (

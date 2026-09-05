@@ -14,6 +14,8 @@ export function Topbar() {
   
   // Very naive breadcrumb logic for demo purposes
   const paths = pathname.split('/').filter(Boolean);
+  
+  const isActive = (path: string) => pathname.startsWith(path);
 
   return (
     <header className="h-14 border-b border-border bg-surface px-6 flex items-center justify-between sticky top-0 z-10">
@@ -61,6 +63,17 @@ export function Topbar() {
               <div className="px-4 py-2 border-b border-border">
                 <p className="text-[13px] font-medium text-foreground truncate">{user?.name || "User"}</p>
                 <p className="text-[11px] text-foreground-muted truncate capitalize">{user?.role || "Unknown Role"}</p>
+              </div>
+              <div className="flex flex-col gap-1 p-2 border-b border-border">
+                <Link href="/deals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/deals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Pipeline
+                </Link>
+                <Link href="/approvals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/approvals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Approvals
+                </Link>
+                <Link href="/operations" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/operations') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Operations
+                </Link>
               </div>
               <button
                 onClick={() => logout()}

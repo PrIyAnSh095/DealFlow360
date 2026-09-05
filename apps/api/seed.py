@@ -8,13 +8,26 @@ from src.models.deal import Deal
 from src.models.user import User
 from src.models.quotation import Quotation, QuoteLine
 from src.models.approval import ApprovalRequest
+from src.models.operations import Warehouse, Stock, Order
 from src.core.security import get_password_hash
 
 def seed_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     
-    # 1. Check if we already have products
+    # 1. Check if we already have users, if not create admin
+    if db.query(User).count() == 0:
+        print("Seeding admin user...")
+        admin = User(
+            email="admin@dealflow360.com",
+            hashed_password=get_password_hash("admin"),
+            name="Admin User",
+            role="manager"
+        )
+        db.add(admin)
+        db.commit()
+
+    # 2. Check if we already have products
     if db.query(Product).count() > 0:
         print("Database already seeded with products!")
         
@@ -76,7 +89,60 @@ def seed_db():
         
     db.commit()
     db.close()
-    print("Seeding complete.")
+    # --- Step 4: Operations / Fulfillment ---
+    from src.models.operations import Warehouse, Stock, Order
+    if db.query(Warehouse).count() == 0:
+        print("Seeding mock warehouses and stock...")
+        w1 = Warehouse(id="w-1", name="East Coast Hub", location="New York, NY")
+        w2 = Warehouse(id="w-2", name="West Coast Hub", location="San Francisco, CA")
+        db.add_all([w1, w2])
+        
+        # Add random stock for products
+        all_products = db.query(Product).all()
+        for p in all_products:
+            db.add(Stock(product_id=p.id, warehouse_id="w-1", quantity_on_hand=15))
+            db.add(Stock(product_id=p.id, warehouse_id="w-2", quantity_on_hand=5))
+            
+        # Create an Order for q-1 if it was ACCEPTED (we will mock it as pending_fulfillment)
+        # Wait, q-1 is PENDING in the mock approval. 
+        # For Phase 8, let's create a NEW deal, quote, and order to test fulfillment directly!
+        
+        # Mock Deal for Operations
+        d_ops = Deal(id="d-ops", customer_name="Wayne Enterprises", value=50000.0, status="won", risk="low")
+        db.add(d_ops)
+        
+        q_ops = Quotation(
+            id="q-ops",
+            deal_id="d-ops",
+            status="ACCEPTED",
+            subtotal=50000.0,
+            total_discount=0.0,
+            total=50000.0,
+            margin_percentage=40.0,
+            risk_score="LOW",
+            requires_approval=False
+        )
+        db.add(q_ops)
+        
+        ql_ops = QuoteLine(
+            id="ql-ops-1",
+            quotation_id="q-ops",
+            product_id="p-1", # MacBook Pro
+            quantity=12,
+            unit_price=2000.0,
+            discount_percent=0.0
+        )
+        db.add(ql_ops)
+        
+        o_ops = Order(
+            id="o-ops-1",
+            quotation_id="q-ops",
+            status="pending_fulfillment"
+        )
+        db.add(o_ops)
+        
+        db.commit()
 
+    print("Seeding complete.")
 if __name__ == "__main__":
     seed_db()

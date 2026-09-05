@@ -10,7 +10,7 @@ import { dealsApi } from "@/features/deals/api";
 import { Deal } from "@/features/deals/types";
 import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 
 export default function DashboardPage() {
   const { user } = useAuth();

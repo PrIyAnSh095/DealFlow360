@@ -34,14 +34,20 @@ export const customerApi = {
   },
 
   getInvoices: async (): Promise<CustomerInvoice[]> => {
-    const response = await apiClient.get<CustomerInvoice[]>('/billing/invoices');
-    // Assuming backend returns invoices for the current customer due to RoleChecker
-    // We might need to map backend schema to CustomerInvoice schema if they differ
-    return response.data;
+    try {
+      const response = await apiClient.get<CustomerInvoice[]>('/billing/invoices');
+      return response.data;
+    } catch {
+      return [];
+    }
   },
   
   getSubscriptions: async (): Promise<any[]> => {
-    const response = await apiClient.get('/billing/subscriptions');
-    return response.data;
-  },
+    try {
+      const response = await apiClient.get('/billing/subscriptions');
+      return response.data;
+    } catch {
+      return [];
+    }
+  }
 };

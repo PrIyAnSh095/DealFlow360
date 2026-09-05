@@ -22,7 +22,7 @@ export default function AIExplanationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-card text-card-foreground border border-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-surface text-foreground border border-border rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/30">
@@ -65,15 +65,23 @@ export default function AIExplanationModal({
               </p>
             </div>
           ) : !data ? (
-            <div className="p-4 rounded-lg bg-danger/10 text-danger border border-danger/20 text-center">
+            <div className="p-4 rounded-lg bg-danger/10 text-danger border border-danger/20 text-center font-medium">
               Unable to load AI quotation explanation. Please try again.
+            </div>
+          ) : (data.error || data.detail) ? (
+            <div className="p-6 rounded-xl bg-danger/10 text-danger border border-danger/20 text-center space-y-3">
+              <div className="flex items-center justify-center gap-2 font-bold text-base">
+                <AlertTriangle className="w-6 h-6 text-danger" />
+                <span>AI Service Error</span>
+              </div>
+              <p className="text-sm font-medium text-foreground">{data.detail || data.error}</p>
             </div>
           ) : (
             <>
               {/* Status Badge */}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  Provider: {data.ai_status === "live_ollama" ? "Ollama Local AI" : "Deterministic Engine (AI Fallback)"}
+                  Provider: Ollama Local AI (qwen3:4b)
                 </span>
               </div>
 
@@ -89,7 +97,7 @@ export default function AIExplanationModal({
 
               {/* Grid Context: Customer & Quotation */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg border border-border bg-card space-y-2">
+                <div className="p-4 rounded-lg border border-border bg-surface space-y-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">
                     Customer Overview
                   </h4>
@@ -113,7 +121,7 @@ export default function AIExplanationModal({
                   )}
                 </div>
 
-                <div className="p-4 rounded-lg border border-border bg-card space-y-2">
+                <div className="p-4 rounded-lg border border-border bg-surface space-y-2">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-primary">
                     Financial & Pricing Analysis
                   </h4>
@@ -140,7 +148,7 @@ export default function AIExplanationModal({
 
               {/* Fulfillment & Shipping */}
               {(data.fulfillment_observation || data.shipping_observation) && (
-                <div className="p-4 rounded-lg border border-border bg-card space-y-2">
+                <div className="p-4 rounded-lg border border-border bg-surface space-y-2">
                   <div className="flex items-center gap-2 text-primary font-semibold text-xs uppercase tracking-wider">
                     <Truck className="w-4 h-4" />
                     <span>Fulfillment & Logistics Observations</span>

@@ -149,4 +149,14 @@ export const adminApi = {
   deleteApprovalChain: async (id: string): Promise<void> => {
     await apiClient.delete(`/admin/approval-chains/${id}`);
   },
+
+  // AI Config
+  getAiConfig: async (): Promise<any> => {
+    const response = await apiClient.get<any>('/admin/ai-config');
+    return response.data;
+  },
+  updateAiConfig: async (data: any): Promise<any> => {
+    const response = await apiClient.put<any>('/admin/ai-config', data);
+    return response.data;
+  },
 };

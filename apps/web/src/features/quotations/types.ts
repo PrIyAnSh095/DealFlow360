@@ -48,6 +48,7 @@ export interface QuotationCreate {
 export interface QuotationResponse {
   id: string;
   deal_id: string;
+  customer_name?: string;
   status: string;
   subtotal: number;
   total_discount: number;
@@ -55,4 +56,5 @@ export interface QuotationResponse {
   margin_percentage: number;
   risk_score: "LOW" | "MEDIUM" | "HIGH";
   requires_approval: boolean;
+  lines?: QuoteLineResponse[];
 }

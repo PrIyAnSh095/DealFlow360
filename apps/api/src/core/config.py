@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # ── CORS ───────────────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "http://localhost:3000"
 
+    # ── AI / Ollama Settings ───────────────────────────────────────────────────
+    AI_ENABLED: bool = True
+    AI_PROVIDER: str = "ollama"
+    AI_BASE_URL: str = "http://localhost:11434"
+    AI_MODEL: str = "qwen3:4b"
+
     model_config = SettingsConfigDict(
         # Look for .env in repo root, local api dir, or current working directory
         env_file=[str(_REPO_ROOT / ".env"), str(_API_ROOT / ".env"), ".env"],

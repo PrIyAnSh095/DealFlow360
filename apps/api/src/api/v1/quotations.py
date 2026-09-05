@@ -234,10 +234,11 @@ def get_quotation_ai_explanation(
     Forbidden for Customer / Customer Portal roles (returns 403).
     """
     role = current_user.get("role", "").lower() if isinstance(current_user, dict) else getattr(current_user, "role", "").lower()
-    if role in ["customer", "client"]:
+    allowed_roles = ["sales", "sales_rep", "manager", "sales_manager", "finance", "ops", "finance_ops", "admin"]
+    if role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Role 'customer' is not authorized to access quotation AI explanations."
+            detail=f"Role '{role}' is not authorized to access quotation AI explanations."
         )
 
     q = db.query(Quotation).filter(Quotation.id == quotation_id).first()

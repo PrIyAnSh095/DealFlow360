@@ -10,6 +10,7 @@ from src.models.pricing import Category, PriceList, PriceListItem, DiscountPolic
 from src.models.billing import SubscriptionPlan, Subscription, SubscriptionLine, BillingScheduleItem, Invoice, InvoiceLine, Payment
 from src.models.audit import AuditEvent
 from src.models.ai_config import CompanyAIConfig
+from src.models.organization import OrganizationProfile
 
 __all__ = [
     "User",
@@ -40,5 +41,6 @@ __all__ = [
     "Payment",
     "AuditEvent",
     "CompanyAIConfig",
+    "OrganizationProfile",
 ]
 

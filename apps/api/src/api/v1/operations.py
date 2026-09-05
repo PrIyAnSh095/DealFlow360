@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 
 from src.core.database import get_db
 from src.api.deps import RoleChecker
+from src.core.security import get_current_user
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
@@ -132,6 +133,23 @@ def calculate_shipping_rates(
 ):
     """Calculates shipping rates using backend Shiprocket adapter or internal rate card fallback."""
     return shipping_service.get_shipping_rates(pickup_pincode, delivery_pincode, weight_kg)
+
+@router.post("/fulfillment/{order_id}/ai-explanation")
+def get_warehouse_ai_explanation(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Returns local Ollama advisory AI recommendations comparing warehouse fulfillment plans."""
+    role = current_user.get("role", "").lower() if isinstance(current_user, dict) else getattr(current_user, "role", "").lower()
+    if role in ["customer", "client"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role 'customer' is not authorized to access warehouse AI explanations."
+        )
+
+    context = ai_service.build_warehouse_ai_context(db, order_id)
+    return ai_service.generate_warehouse_explanation(context, role=role)
 
 @router.post("/ai/explain")
 def get_ai_explanation(context: Dict[str, Any]):

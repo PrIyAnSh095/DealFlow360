@@ -3,7 +3,8 @@
 import { usePendingOrders, useFulfillmentRecommendation, useSubmitFulfillment } from "@/features/operations/hooks";
 import { Order } from "@/features/operations/types";
 import { useState } from "react";
-import { Package, Truck, Receipt, CheckCircle2, AlertCircle, Lock } from "lucide-react";
+import Link from "next/link";
+import { Package, Truck, Receipt, CheckCircle2, AlertCircle, Lock, SplitSquareHorizontal, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/features/auth/auth-context";
 import { toast } from "sonner";
 
@@ -45,6 +46,22 @@ export default function OperationsPage() {
             Operations & Fulfillment
           </h1>
           <p className="text-sm text-foreground-muted mt-1">Manage pending orders and generate fulfillment plans.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/finance/warehouse-split"
+            className="flex items-center gap-1.5 text-[13px] font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-primary-foreground px-3.5 py-1.5 rounded-md transition-colors shadow-xs"
+          >
+            <SplitSquareHorizontal className="w-4 h-4" />
+            Warehouse Split
+          </Link>
+          <Link
+            href="/finance/backorders"
+            className="flex items-center gap-1.5 text-[13px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500 hover:text-white px-3.5 py-1.5 rounded-md transition-colors shadow-xs"
+          >
+            <AlertTriangle className="w-4 h-4" />
+            Backorders
+          </Link>
         </div>
       </div>
 

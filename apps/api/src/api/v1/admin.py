@@ -28,11 +28,46 @@ from src.schemas.admin import (
 from src.schemas.user import UserResponse
 from src.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from src.core.security import get_password_hash
+from src.models.organization import OrganizationProfile
 from src.services.audit_service import log_audit_event
 
 router = APIRouter()
 
-# --- AI CONFIGURATION ---
+@router.get("/organization")
+def get_organization_profile(db: Session = Depends(get_db)):
+    org = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    if not org:
+        org = OrganizationProfile(id="org-default")
+        db.add(org)
+        db.commit()
+        db.refresh(org)
+    return org
+
+@router.post("/organization/onboarding")
+def complete_organization_onboarding(payload: Dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+    org = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    if not org:
+        org = OrganizationProfile(id="org-default")
+        db.add(org)
+
+    for key, value in payload.items():
+        if hasattr(org, key) and key != "id":
+            setattr(org, key, value)
+
+    org.onboarding_completed = True
+    db.commit()
+    db.refresh(org)
+
+    log_audit_event(
+        db,
+        user_id="admin",
+        action="ORGANIZATION_ONBOARDING_COMPLETED",
+        entity_type="OrganizationProfile",
+        entity_id="org-default",
+        details="Organization Admin completed multi-step onboarding and AI policy configuration"
+    )
+
+    return org
 @router.get("/ai-config")
 def get_ai_config(db: Session = Depends(get_db)):
     config = db.query(CompanyAIConfig).filter(CompanyAIConfig.id == "default-config").first()

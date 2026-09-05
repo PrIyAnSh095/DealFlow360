@@ -13,6 +13,7 @@ class Warehouse(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
     location = Column(String, nullable=False)
+    pincode = Column(String, nullable=True, default="10001")
     
 class Stock(Base):
     __tablename__ = "stock"

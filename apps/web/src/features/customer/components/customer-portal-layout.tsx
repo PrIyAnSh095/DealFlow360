@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   FileText,
+  MessageSquareDiff,
   ShoppingBag,
   Truck,
   Receipt,
@@ -16,11 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  Loader2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { useAuth } from "@/features/auth/auth-context";
 
 const customerNav = [
   {
@@ -33,6 +32,12 @@ const customerNav = [
     section: "Quotations",
     items: [
       { name: "My Quotations", href: "/portal/quotations", icon: FileText },
+      {
+        name: "Negotiate",
+        href: "/portal/negotiate",
+        icon: MessageSquareDiff,
+        badge: "1",
+      },
     ],
   },
   {
@@ -51,53 +56,8 @@ export function CustomerPortalLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { user, isLoading, logout } = useAuth();
-
   const [collapsed, setCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.replace("/login");
-    }
-  }, [user, isLoading, router]);
-
-  const handleLogout = async () => {
-    if (isLoggingOut) return;
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } catch {
-      localStorage.removeItem("dealflow_token");
-      router.replace("/login");
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
-
-  const displayName = user.name || "Customer User";
-  const displayRole = user.role ? user.role.toUpperCase() : "CUSTOMER";
-  const userInitials = displayName
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) || "CU";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-[13px]">
@@ -166,9 +126,9 @@ export function CustomerPortalLayout({
                         {!collapsed && (
                           <span className="flex-1 truncate">{item.name}</span>
                         )}
-                        {"badge" in item && (item as { badge?: string }).badge && !collapsed && (
+                        {"badge" in item && item.badge && !collapsed && (
                           <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                            {(item as { badge?: string }).badge}
+                            {item.badge}
                           </span>
                         )}
                       </Link>
@@ -185,38 +145,25 @@ export function CustomerPortalLayout({
           {!collapsed ? (
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
-                <span className="text-[11px] font-bold text-primary">{userInitials}</span>
+                <span className="text-[11px] font-bold text-primary">AK</span>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-medium text-foreground truncate">
-                  {displayName}
+                  Aryan Kumar
                 </p>
-                <p className="text-[10px] text-foreground-muted capitalize">{displayRole}</p>
+                <p className="text-[10px] text-foreground-muted">Customer</p>
               </div>
               <ThemeToggle className="p-1 h-7 w-7 text-foreground-muted hover:text-foreground" />
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="text-foreground-muted hover:text-danger transition-colors p-1 disabled:opacity-50"
-                title="Sign out"
-              >
+              <button className="text-foreground-muted hover:text-danger transition-colors p-1" title="Sign out">
                 <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center border border-primary/20">
-                <span className="text-[11px] font-bold text-primary">{userInitials}</span>
+                <span className="text-[11px] font-bold text-primary">AK</span>
               </div>
               <ThemeToggle className="p-1 h-7 w-7 text-foreground-muted hover:text-foreground" />
-              <button
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="text-foreground-muted hover:text-danger transition-colors p-1 disabled:opacity-50"
-                title="Sign out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
             </div>
           )}
         </div>
@@ -259,25 +206,21 @@ export function CustomerPortalLayout({
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center border border-primary/20 hover:bg-primary/20 transition-colors text-[11px] font-bold"
               >
-                {userInitials}
+                AK
               </button>
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-52 bg-surface rounded-md shadow-lg border border-border py-1 z-50">
                   <div className="px-4 py-2 border-b border-border">
                     <p className="text-[13px] font-medium text-foreground">
-                      {displayName}
+                      Aryan Kumar
                     </p>
-                    <p className="text-[11px] text-foreground-muted capitalize">{displayRole}</p>
+                    <p className="text-[11px] text-foreground-muted">Customer</p>
                   </div>
                   <div className="px-4 py-2 border-b border-border flex items-center justify-between">
                     <span className="text-[12px] text-foreground-muted">Theme</span>
                     <ThemeToggle />
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    disabled={isLoggingOut}
-                    className="w-full text-left px-4 py-2 text-[13px] text-danger hover:bg-muted flex items-center gap-2 disabled:opacity-50"
-                  >
+                  <button className="w-full text-left px-4 py-2 text-[13px] text-danger hover:bg-muted flex items-center gap-2">
                     <LogOut className="h-3.5 w-3.5" />
                     Sign out
                   </button>

@@ -7,6 +7,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import Link from "next/link";
 import { useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
+import axios from "axios";
 
 export default function SignupPage() {
   const { signup } = useAuth();
@@ -28,12 +29,15 @@ export default function SignupPage() {
       setError(null);
       // Force customer role for self-registration, ignoring any manipulated form data
       await signup({ ...data, role: 'customer' });
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      const axiosError = axios.isAxiosError(err) ? err : null;
+      const detail = axiosError?.response?.data?.detail;
       if (Array.isArray(detail)) {
-        setError(detail.map((e: any) => e.msg).join(", "));
+        setError(detail.map((entry: { msg?: string }) => entry.msg || "Invalid input").join(", "));
       } else if (typeof detail === "string") {
         setError(detail);
+      } else if (axiosError?.code === "ECONNABORTED") {
+        setError("The authentication service is not responding. Please try again.");
       } else {
         setError("Failed to create account. Please try again.");
       }

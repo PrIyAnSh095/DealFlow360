@@ -9,6 +9,7 @@ from src.models.admin import (
     Category, CustomerTier, DiscountPolicy, ApprovalRule, ApprovalChain
 )
 from src.models.product import Product
+from src.schemas.admin import (
     PricingRuleCreate, PricingRuleUpdate, PricingRuleResponse,
     SubscriptionPlanCreate, SubscriptionPlanUpdate, SubscriptionPlanResponse,
     GlobalSettingCreate, GlobalSettingUpdate, GlobalSettingResponse,

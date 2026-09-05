@@ -7,6 +7,7 @@ import { useAuth } from "@/features/auth/auth-context";
 import Link from "next/link";
 import { useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
+import axios from "axios";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -24,8 +25,15 @@ export default function LoginPage() {
     try {
       setError(null);
       await login(data);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Invalid email or password.");
+    } catch (err: unknown) {
+      const axiosError = axios.isAxiosError(err) ? err : null;
+      setError(
+        axiosError?.response?.data?.detail ||
+          axiosError?.response?.data?.message ||
+          (axiosError?.code === "ECONNABORTED"
+            ? "The authentication service is not responding. Please try again."
+            : "Invalid email or password.")
+      );
     }
   };
 

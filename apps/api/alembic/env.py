@@ -57,6 +57,7 @@ def run_migrations_offline() -> None:
         transaction_per_migration=True,
         compare_type=True,
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
@@ -79,6 +80,7 @@ def run_migrations_online() -> None:
             compare_type=True,          # Detect column type changes.
             compare_server_default=True, # Detect server_default changes.
         )
+
         with context.begin_transaction():
             context.run_migrations()
 
@@ -87,3 +89,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+

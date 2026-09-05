@@ -81,6 +81,10 @@ class LoginRequest(BaseModel):
 
 # ── Response schemas ───────────────────────────────────────────────────────────
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+
 class UserResponse(BaseModel):
     """
     Safe user representation returned by all auth endpoints.

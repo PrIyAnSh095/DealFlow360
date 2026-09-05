@@ -38,7 +38,7 @@ app.include_router(deals.router, prefix="/api/v1/deals", tags=["deals"])
 app.include_router(customers.router, prefix="/api/v1/customers", tags=["customers"])
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
-app.include_router(health.router, prefix="/api/v1/health-legacy", tags=["health-legacy"])
+app.include_router(health.router, prefix="/api/v1/health-system", tags=["health-system"])
 app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["quotations"])
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
 app.include_router(portal.router, prefix="/api/v1/portal", tags=["portal"])
@@ -51,3 +51,4 @@ app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+

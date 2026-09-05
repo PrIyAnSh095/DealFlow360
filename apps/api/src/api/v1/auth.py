@@ -6,6 +6,7 @@ from src.core.database import get_db
 from src.core.security import verify_password, get_password_hash, create_access_token, get_current_user, validate_password_strength, generate_secure_password
 from src.models.user import User
 from src.services.audit_service import log_audit_event
+from src.schemas.user import UserResponse, UserUpdate
 
 router = APIRouter()
 
@@ -112,4 +113,28 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me")
 def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+@router.patch("/me")
+def update_me(
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    user_id = current_user.get("sub") or current_user.get("id")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    update_data = user_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+        
+    db.commit()
+    db.refresh(user)
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role
+    }
 

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, Integer, Boolean, DateTime
+from sqlalchemy import Column, String, Numeric, ForeignKey, Integer, Boolean, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.core.database import Base
@@ -14,10 +14,10 @@ class Quotation(Base):
     deal_id = Column(String, ForeignKey("deals.id"), nullable=False)
     status = Column(String, default="draft")
     
-    subtotal = Column(Float, default=0.0)
-    total_discount = Column(Float, default=0.0)
-    total = Column(Float, default=0.0)
-    margin_percentage = Column(Float, default=0.0)
+    subtotal = Column(Numeric(10, 2), default=0.00)
+    total_discount = Column(Numeric(10, 2), default=0.00)
+    total = Column(Numeric(10, 2), default=0.00)
+    margin_percentage = Column(Numeric(5, 2), default=0.00)
     
     risk_score = Column(String, default="low") # low, medium, high
     requires_approval = Column(Boolean, default=False)
@@ -35,8 +35,8 @@ class QuoteLine(Base):
     product_id = Column(String, ForeignKey("products.id"), nullable=False)
     
     quantity = Column(Integer, default=1)
-    unit_price = Column(Float, nullable=False) # Copied from product at time of quote
-    discount_percent = Column(Float, default=0.0)
+    unit_price = Column(Numeric(10, 2), nullable=False) # Copied from product at time of quote
+    discount_percent = Column(Numeric(5, 2), default=0.00)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

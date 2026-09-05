@@ -29,3 +29,5 @@ class Customer(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     tier = relationship("CustomerTier")
+    deals = relationship("Deal", back_populates="customer")
+

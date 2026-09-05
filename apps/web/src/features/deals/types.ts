@@ -9,17 +9,21 @@ export type DealStatus =
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 
-export interface Deal {
+export interface Customer {
   id: string;
   name: string;
-  customerName: string;
+  email: string;
+  company: string;
+  tier: string;
+}
+
+export interface Deal {
+  id: string;
+  customer_id: string;
+  customer?: Customer;
   value: number;
-  margin: number;
-  discount: number;
   status: DealStatus;
   risk: RiskLevel;
-  ownerId: string;
-  ownerInitials: string;
-  updatedAt: string;
-  nextAction?: string;
+  created_at: string;
+  updated_at: string;
 }

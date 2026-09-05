@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { Product, QuoteRecalculateRequest, QuoteRecalculateResponse } from './types';
+import { Product, QuoteRecalculateRequest, QuoteRecalculateResponse, QuotationResponse, QuotationCreate } from './types';
 
 export const quotationsApi = {
   getProducts: async (): Promise<Product[]> => {
@@ -9,6 +9,21 @@ export const quotationsApi = {
 
   recalculate: async (quotationId: string, request: QuoteRecalculateRequest): Promise<QuoteRecalculateResponse> => {
     const response = await apiClient.post<QuoteRecalculateResponse>(`/quotations/${quotationId}/recalculate`, request);
+    return response.data;
+  },
+
+  getQuotations: async (): Promise<QuotationResponse[]> => {
+    const response = await apiClient.get<QuotationResponse[]>('/quotations');
+    return response.data;
+  },
+
+  createQuotation: async (request: QuotationCreate): Promise<QuotationResponse> => {
+    const response = await apiClient.post<QuotationResponse>('/quotations', request);
+    return response.data;
+  },
+
+  submitQuotation: async (quotationId: string): Promise<QuotationResponse> => {
+    const response = await apiClient.post<QuotationResponse>(`/quotations/${quotationId}/submit`);
     return response.data;
   }
 };

@@ -1,18 +1,62 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+"""
+SQLAlchemy 2.x database engine, session factory, and declarative Base.
 
-# Use a local SQLite database for the hackathon prototype
-SQLALCHEMY_DATABASE_URL = "sqlite:///./dealflow.db"
+Connection string is read exclusively from settings (environment / .env).
+Schema changes are managed by Alembic — do NOT call Base.metadata.create_all()
+anywhere in application code.
+"""
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import NullPool
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+from src.core.config import get_settings
+
+
+def _build_engine():
+    settings = get_settings()
+    url = settings.DATABASE_URL
+
+    # For PostgreSQL we use NullPool in tests/scripts; for the app server the
+    # default connection pool is fine. Keep simple here.
+    engine = create_engine(
+        url,
+        # Echo SQL only in development — never in production.
+        echo=(settings.APP_ENV == "development"),
+        future=True,  # SQLAlchemy 2.x style
+    )
+    return engine
+
+
+engine = _build_engine()
+
+SessionLocal = sessionmaker(
+    bind=engine,
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,  # avoids lazy-load issues after commit
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    """
+    Shared declarative base for all SQLAlchemy models.
+
+    Other developers should import this Base and extend it when adding
+    new domain models (products, quotations, etc.).
+    """
+    pass
+
+
+# ── FastAPI dependency ─────────────────────────────────────────────────────────
 
 def get_db():
+    """
+    Yield a database session and guarantee it is closed after the request,
+    even if an exception is raised.
+
+    Usage in FastAPI:
+        db: Session = Depends(get_db)
+    """
     db = SessionLocal()
     try:
         yield db

@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: authApi.login,
     onSuccess: (data) => {
       queryClient.setQueryData(["auth", "me"], data);
-      router.push("/dashboard");
+      router.push(data.role === "customer" ? "/portal" : "/dashboard");
     },
   });
 
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: authApi.signup,
     onSuccess: (data) => {
       queryClient.setQueryData(["auth", "me"], data);
-      router.push("/dashboard");
+      router.push(data.role === "customer" ? "/portal" : "/dashboard");
     },
   });
 

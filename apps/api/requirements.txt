@@ -1,7 +1,20 @@
+# Web framework
 fastapi[standard]>=0.112.0
-uvicorn>=0.30.0
+uvicorn[standard]>=0.30.0
+
+# Database
 sqlalchemy>=2.0.0
+psycopg[binary]>=3.1.0
+alembic>=1.13.0
+
+# Validation & settings
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
+email-validator>=2.0.0
+
+# Auth / security
 passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
-alembic>=1.13.0
+
+# Environment
+python-dotenv>=1.0.0

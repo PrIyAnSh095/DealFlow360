@@ -1,29 +1,57 @@
+"""
+FastAPI dependency injection utilities.
+
+get_current_user  — validates Bearer JWT and returns the active User model.
+get_current_active_user — alias that additionally confirms is_active = True
+                           (both checks are already in get_current_user).
+"""
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
 from sqlalchemy.orm import Session
-from src.core.database import get_db
-from src.core.security import SECRET_KEY, ALGORITHM
-from src.models.user import User
-from src.schemas.user import UserResponse
 
+from src.core.database import get_db
+from src.core.security import decode_access_token
+from src.models.user import User
+
+# The tokenUrl is the endpoint where clients exchange credentials for a token.
+# This drives the Swagger UI "Authorize" button.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Validate the Bearer JWT and return the corresponding User.
+
+    Raises:
+        401 — token missing, invalid, or expired.
+        401 — user referenced in token no longer exists.
+        403 — user account is inactive (deactivated by admin).
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Could not validate credentials.",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
+
+    user_id = decode_access_token(token)
+    if user_id is None:
         raise credentials_exception
-        
-    user = db.query(User).filter(User.id == user_id).first()
+
+    user: User | None = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive. Please contact support.",
+        )
+
     return user
+
+
+# Alias — makes route signatures self-documenting when roles matter.
+get_current_active_user = get_current_user

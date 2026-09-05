@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, Boolean, Integer, DateTime
+from sqlalchemy import Column, String, Numeric, Boolean, Integer, DateTime
 from sqlalchemy.sql import func
 from src.core.database import Base
 
@@ -12,8 +12,8 @@ class PricingRule(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
     target_role = Column(String, nullable=False)
-    max_discount_percent = Column(Float, nullable=False)
-    requires_approval_above = Column(Float, nullable=False)
+    max_discount_percent = Column(Numeric(5, 2), nullable=False)
+    requires_approval_above = Column(Numeric(5, 2), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -25,7 +25,7 @@ class SubscriptionPlan(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     interval = Column(String, default="month") # month, year
-    price = Column(Float, nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

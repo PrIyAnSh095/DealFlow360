@@ -5,7 +5,7 @@ from decimal import Decimal
 from datetime import datetime, timedelta
 import calendar
 
-from src.api.deps import get_db, get_current_user
+from src.api.deps import get_db, get_current_user, RoleChecker
 from src.models.user import User
 from src.models.operations import Order
 from src.models.deal import Deal
@@ -21,7 +21,7 @@ from src.schemas.billing import (
 router = APIRouter()
 
 @router.get("/invoices", response_model=List[InvoiceResponse])
-def get_invoices(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_invoices(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     invoices = db.query(Invoice).all()
     resp = []
     for inv in invoices:
@@ -33,7 +33,7 @@ def get_invoices(db: Session = Depends(get_db), current_user: User = Depends(get
     return resp
 
 @router.post("/orders/{order_id}/generate-invoice", response_model=InvoiceResponse)
-def generate_invoice(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def generate_invoice(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(404, "Order not found")
@@ -111,7 +111,7 @@ def generate_invoice(order_id: str, db: Session = Depends(get_db), current_user:
     return invoice
 
 @router.post("/invoices/{invoice_id}/pay", response_model=PaymentResponse)
-def pay_invoice(invoice_id: str, payload: PaymentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def pay_invoice(invoice_id: str, payload: PaymentCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(404, "Invoice not found")
@@ -136,7 +136,7 @@ def pay_invoice(invoice_id: str, payload: PaymentCreate, db: Session = Depends(g
     return payment
 
 @router.get("/subscriptions", response_model=List[SubscriptionResponse])
-def get_subscriptions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_subscriptions(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     subs = db.query(Subscription).all()
     resp = []
     for sub in subs:
@@ -149,7 +149,7 @@ def get_subscriptions(db: Session = Depends(get_db), current_user: User = Depend
     return resp
 
 @router.post("/subscriptions/{sub_id}/modify", response_model=SubscriptionResponse)
-def modify_subscription(sub_id: str, payload: SubscriptionActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def modify_subscription(sub_id: str, payload: SubscriptionActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if not sub:
         raise HTTPException(404, "Subscription not found")
@@ -199,7 +199,7 @@ def modify_subscription(sub_id: str, payload: SubscriptionActionRequest, db: Ses
     return sub
 
 @router.post("/subscriptions/{sub_id}/cancel")
-def cancel_subscription(sub_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def cancel_subscription(sub_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
     if not sub:
         raise HTTPException(404, "Subscription not found")

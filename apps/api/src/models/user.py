@@ -23,9 +23,7 @@ from sqlalchemy import (
     Index,
     String,
     func,
-    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -43,11 +41,11 @@ class User(Base):
     __tablename__ = "users"
 
     # ── Primary key ────────────────────────────────────────────────────────────
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+    id: Mapped[str] = mapped_column(
+        String(36),
         primary_key=True,
-        default=uuid.uuid4,
-        server_default=text("gen_random_uuid()"),  # PostgreSQL 14+ built-in
+        default=lambda: str(uuid.uuid4()),
+        index=True,
         comment="Unique user identifier (UUID v4)",
     )
 

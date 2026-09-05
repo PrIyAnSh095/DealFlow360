@@ -9,7 +9,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.v1 import auth, quotations, approvals, portal, operations
+from src.api.v1 import (
+    auth, quotations, approvals, portal, operations,
+    analytics, customers, search, health, deals, admin, billing, dashboard, intelligence
+)
 from src.core.config import get_settings
 
 
@@ -56,6 +59,16 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
     app.include_router(portal.router, prefix="/api/v1/portal", tags=["Portal"])
     app.include_router(operations.router, prefix="/api/v1/operations", tags=["Operations"])
+    
+    app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
+    app.include_router(customers.router, prefix="/api/v1/customers", tags=["Customers"])
+    app.include_router(search.router, prefix="/api/v1/search", tags=["Search"])
+    app.include_router(health.router, prefix="/api/v1/health", tags=["Deal Health"])
+    app.include_router(deals.router, prefix="/api/v1/deals", tags=["Deals"])
+    app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
+    app.include_router(billing.router, prefix="/api/v1/billing", tags=["Billing"])
+    app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+    app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["Intelligence"])
 
     # ── Health check ──────────────────────────────────────────────────────────
     @app.get("/health", tags=["Health"], include_in_schema=False)

@@ -38,3 +38,75 @@ def create_customer(
     db.commit()
     db.refresh(new_customer)
     return new_customer
+
+from src.models.deal import Deal
+from src.models.quotation import Quotation, QuoteLine
+from src.models.operations import Order
+from src.schemas.portal import PublicQuotationResponse, PublicQuoteLineResponse
+from src.schemas.operations import OrderResponse
+from src.api.deps import RoleChecker
+
+@router.get("/me/quotations", response_model=List[PublicQuotationResponse])
+def get_my_quotations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["customer"]))
+):
+    customer = db.query(Customer).filter(Customer.email == current_user.email).first()
+    if not customer:
+        return []
+        
+    deals = db.query(Deal).filter(Deal.customer_id == customer.id).all()
+    deal_ids = [d.id for d in deals]
+    if not deal_ids:
+        return []
+        
+    quotes = db.query(Quotation).filter(Quotation.deal_id.in_(deal_ids)).order_by(Quotation.created_at.desc()).all()
+    
+    resp = []
+    for q in quotes:
+        deal = next((d for d in deals if d.id == q.deal_id), None)
+        pq = PublicQuotationResponse(
+            id=q.id,
+            status=q.status,
+            subtotal=q.subtotal,
+            total_discount=q.total_discount,
+            total=q.total,
+            deal_name=f"Quote for {deal.title}" if getattr(deal, 'title', None) else f"Quote for {customer.company}",
+            customer_name=customer.company,
+            lines=[]
+        )
+        resp.append(pq)
+    return resp
+
+@router.get("/me/orders", response_model=List[OrderResponse])
+def get_my_orders(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["customer"]))
+):
+    customer = db.query(Customer).filter(Customer.email == current_user.email).first()
+    if not customer:
+        return []
+        
+    deals = db.query(Deal).filter(Deal.customer_id == customer.id).all()
+    deal_ids = [d.id for d in deals]
+    if not deal_ids:
+        return []
+        
+    quotes = db.query(Quotation).filter(Quotation.deal_id.in_(deal_ids)).all()
+    quote_ids = [q.id for q in quotes]
+    if not quote_ids:
+        return []
+        
+    orders = db.query(Order).filter(Order.quotation_id.in_(quote_ids)).order_by(Order.created_at.desc()).all()
+    
+    resp = []
+    for o in orders:
+        resp.append(OrderResponse(
+            id=o.id,
+            quotation_id=o.quotation_id,
+            status=o.status,
+            created_at=o.created_at,
+            customer_name=customer.company,
+            deal_name="Order"
+        ))
+    return resp

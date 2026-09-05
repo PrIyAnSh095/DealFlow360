@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { FileText, Search, Filter, ChevronRight, Clock, MessageSquareDiff } from "lucide-react";
-import { mockQuotations } from "@/features/customer/mock-data";
+import { customerApi, CustomerQuotation } from "@/features/customer/api";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function formatINR(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -15,25 +15,35 @@ function formatINR(value: number) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  sent: "bg-primary/10 text-primary border-primary/20",
-  under_review: "bg-warning/10 text-warning border-warning/20",
-  negotiating: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
-  approved: "bg-success/10 text-success border-success/20",
-  rejected: "bg-danger/10 text-danger border-danger/20",
-  expired: "bg-muted text-foreground-muted border-border",
+  PENDING_APPROVAL: "bg-warning/10 text-warning border-warning/20",
+  APPROVED: "bg-success/10 text-success border-success/20",
+  SENT: "bg-primary/10 text-primary border-primary/20",
+  NEGOTIATION: "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:text-purple-400",
+  ACCEPTED: "bg-success/10 text-success border-success/20",
+  REJECTED: "bg-danger/10 text-danger border-danger/20",
 };
 
 export default function MyQuotationsPage() {
+  const [quotations, setQuotations] = useState<CustomerQuotation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const filtered = mockQuotations.filter((q) => {
+  useEffect(() => {
+    customerApi.getQuotations().then(setQuotations).finally(() => setIsLoading(false));
+  }, []);
+
+  const filtered = quotations.filter((q) => {
     const matchSearch =
-      q.title.toLowerCase().includes(search.toLowerCase()) ||
-      q.quotationNumber.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || q.status === statusFilter;
+      (q.deal_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      q.id.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = statusFilter === "all" || q.status.toLowerCase() === statusFilter.toLowerCase();
     return matchSearch && matchStatus;
   });
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading quotations...</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,7 +72,7 @@ export default function MyQuotationsPage() {
           />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {["all", "sent", "negotiating", "approved", "rejected"].map(
+          {["all", "sent", "negotiation", "approved", "rejected"].map(
             (status) => (
               <button
                 key={status}
@@ -95,10 +105,6 @@ export default function MyQuotationsPage() {
           </div>
         ) : (
           filtered.map((q) => {
-            const pendingRequests = q.negotiationRequests.filter(
-              (r) => r.status === "pending"
-            ).length;
-
             return (
               <div
                 key={q.id}
@@ -113,7 +119,7 @@ export default function MyQuotationsPage() {
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-[15px] font-semibold text-foreground">
-                          {q.title}
+                          {q.deal_name}
                         </h3>
                         <span
                           className={cn(
@@ -122,26 +128,20 @@ export default function MyQuotationsPage() {
                               "bg-muted text-foreground-muted border-border"
                           )}
                         >
-                          {q.status.replace(/_/g, " ")}
+                          {q.status.replace(/_/g, " ").toLowerCase()}
                         </span>
-                        {pendingRequests > 0 && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-warning/10 text-warning border border-warning/20">
-                            <MessageSquareDiff className="w-3 h-3" />
-                            {pendingRequests} negotiation pending
-                          </span>
-                        )}
                       </div>
                       <p className="text-[12px] text-foreground-muted mt-1">
-                        {q.quotationNumber} · Prepared by {q.salesRep} · Created {q.createdAt}
+                        {q.id.slice(0, 8)}
                       </p>
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-[20px] font-bold text-foreground">
-                      {formatINR(q.grandTotal)}
+                      {formatINR(q.total)}
                     </p>
                     <p className="text-[12px] text-foreground-muted">
-                      After {formatINR(q.totalDiscount)} discount
+                      After {formatINR(q.total_discount)} discount
                     </p>
                   </div>
                 </div>
@@ -160,49 +160,32 @@ export default function MyQuotationsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {q.lineItems.map((item) => (
+                        {q.lines?.map((item: any) => (
                           <tr key={item.id} className="text-[13px]">
                             <td className="py-2 pr-4">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-foreground">
-                                  {item.productName}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium capitalize",
-                                    item.productType === "hardware"
-                                      ? "bg-primary/10 text-primary"
-                                      : item.productType === "service"
-                                      ? "bg-warning/10 text-warning"
-                                      : "bg-success/10 text-success"
-                                  )}
-                                >
-                                  {item.productType}
+                                  {item.product_name}
                                 </span>
                               </div>
                             </td>
                             <td className="py-2 pr-4 text-center text-foreground-muted">
-                              {item.qty}
+                              {item.quantity}
                             </td>
                             <td className="py-2 pr-4 text-right text-foreground-muted">
-                              {formatINR(item.unitPrice)}
+                              {formatINR(item.unit_price)}
                             </td>
                             <td className="py-2 pr-4 text-center">
-                              {item.discount > 0 ? (
+                              {item.discount_percent > 0 ? (
                                 <span className="text-success font-medium">
-                                  {item.discount}%
+                                  {item.discount_percent}%
                                 </span>
                               ) : (
                                 <span className="text-foreground-muted">—</span>
                               )}
                             </td>
                             <td className="py-2 text-right font-semibold text-foreground">
-                              {formatINR(item.finalPrice)}
-                              {item.isRecurring && (
-                                <span className="text-[11px] text-foreground-muted font-normal">
-                                  /mo
-                                </span>
-                              )}
+                              {formatINR(item.total_price)}
                             </td>
                           </tr>
                         ))}
@@ -212,19 +195,13 @@ export default function MyQuotationsPage() {
                 </div>
 
                 {/* Card Footer */}
-                <div className="px-6 py-3 border-t border-border bg-muted/30 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-[12px] text-foreground-muted">
-                    <Clock className="w-3.5 h-3.5" />
-                    Valid until {q.validUntil}
-                  </div>
+                <div className="px-6 py-3 border-t border-border bg-muted/30 flex items-center justify-end">
                   <Link
                     href={`/portal/quotations/${q.id}`}
                     className="flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-primary text-primary-foreground text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm"
                   >
-                    {q.status === "negotiating"
+                    {q.status === "NEGOTIATION"
                       ? "Continue Negotiation"
-                      : q.status === "approved"
-                      ? "View & Confirm"
                       : "View & Negotiate"}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </Link>

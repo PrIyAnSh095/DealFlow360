@@ -21,9 +21,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.core.config import get_settings
 from src.core.database import Base
 
-# ─── Import all models so Alembic sees them ────────────────────────────────────
-# Add new model imports here as they are created.
-from src.models.user import User  # noqa: F401
+from src.models.user import User
+from src.models.customer import Customer
+from src.models.product import Product
+from src.models.deal import Deal
+from src.models.quotation import Quotation, QuoteLine
+from src.models.portal import QuoteMessage
+from src.models.approval import ApprovalRequest, ApprovalAuditLog
+from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
+from src.models.admin import PricingRule, SubscriptionPlan, GlobalSetting
+from src.models.billing import Invoice, InvoiceLine, Subscription, Payment
 
 # ──────────────────────────────────────────────────────────────────────────────
 

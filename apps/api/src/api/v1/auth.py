@@ -23,6 +23,7 @@ from src.schemas.user import (
     RegisterRequest,
     TokenResponse,
     UserResponse,
+    UserUpdate,
 )
 
 router = APIRouter()
@@ -133,4 +134,28 @@ def logout(_current_user: User = Depends(get_current_user)) -> MessageResponse:
 )
 def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Return the profile of the user identified by the Bearer token."""
+    return UserResponse.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update current authenticated user",
+)
+def update_me(
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """Update profile information of the current user."""
+    if body.name is not None:
+        current_user.name = body.name
+    # Don't allow regular users to update their own role unless they are admins.
+    # To keep it simple for testing if role is provided and they are an admin, allow it.
+    if body.role is not None and current_user.role == "admin":
+        current_user.role = body.role
+        
+    db.commit()
+    db.refresh(current_user)
     return UserResponse.model_validate(current_user)

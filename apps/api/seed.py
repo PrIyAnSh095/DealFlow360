@@ -13,6 +13,7 @@ from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
 from src.models.billing import SubscriptionPlan, Subscription, SubscriptionLine, BillingScheduleItem, Invoice, InvoiceLine, Payment
 from src.models.audit import AuditEvent
+from src.models.ai_config import CompanyAIConfig
 from src.core.security import get_password_hash
 
 def seed_db():
@@ -21,7 +22,15 @@ def seed_db():
     
     print("Checking database seed state...")
     
+    # 0. Seed Company AI Config
+    if db.query(CompanyAIConfig).count() == 0:
+        print("Seeding company AI configuration...")
+        cfg = CompanyAIConfig(id="default-config", provider="ollama", model_name="llama3", enabled=True)
+        db.add(cfg)
+        db.commit()
+
     # 1. Seed Users (RBAC: sales, manager, finance, admin, customer)
+
     if db.query(User).count() == 0:
         print("Seeding users...")
         users = [

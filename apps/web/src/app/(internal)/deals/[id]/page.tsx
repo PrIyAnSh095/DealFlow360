@@ -3,21 +3,32 @@
 import { useForm, useWatch } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import axios from "axios";
 import { QuoteLineTable } from "@/features/quotations/components/quote-line-table";
 import { RiskSimulatorPanel } from "@/features/quotations/components/risk-simulator-panel";
 import { useProducts, useRecalculateQuote } from "@/features/quotations/hooks";
 import { QuoteRecalculateResponse, QuoteRecalculateRequest, QuoteLineInput } from "@/features/quotations/types";
-import { Save, FileText, Copy } from "lucide-react";
+import { Save, FileText, Copy, Sparkles, Info } from "lucide-react";
+import { useAuth } from "@/features/auth/auth-context";
+import AIExplanationModal from "@/components/AIExplanationModal";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function DealPage() {
   const params = useParams();
   const dealId = params.id as string;
+  const { user } = useAuth();
   
   const { data: products } = useProducts();
   const recalculateMutation = useRecalculateQuote();
   
   const [simulation, setSimulation] = useState<QuoteRecalculateResponse | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+
+  // AI Modal States
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isAILoading, setIsAILoading] = useState(false);
+  const [aiData, setAIData] = useState<any>(null);
 
   const { control, register, handleSubmit } = useForm<{ lines: QuoteLineInput[] }>({
     defaultValues: {
@@ -48,35 +59,63 @@ export default function DealPage() {
           }))
         };
         
-        recalculateMutation.mutateAsync({ quotationId: dealId, request: req })
-          .then(data => {
+        recalculateMutation.mutate({ quotationId: dealId, request: req }, {
+          onSuccess: (data) => {
             setSimulation(data);
-          })
-          .catch(err => {
-            console.error("Simulation error", err);
-          })
-          .finally(() => {
             setIsSimulating(false);
-          });
+          },
+          onError: () => {
+            setIsSimulating(false);
+          }
+        });
       }, 500); // 500ms debounce
       
       return () => clearTimeout(timer);
     } else {
       setSimulation(null);
     }
-  }, [watchedLines, dealId]); // intentionally excluding recalculateMutation to prevent infinite loops
-
-  const onSave = async (data: { lines: QuoteLineInput[] }) => {
-    // In a full implementation, this would save the actual quote lines to the DB
-    console.log("Saving final quote:", data, simulation);
-    alert("Quote saved successfully!");
-  };
+  }, [watchedLines]); 
 
   const copyPortalLink = () => {
-    const url = `${window.location.origin}/portal/${dealId}`;
-    navigator.clipboard.writeText(url);
+    const link = `${window.location.origin}/portal/${dealId}`;
+    navigator.clipboard.writeText(link);
     alert("Customer Portal link copied to clipboard!");
   };
+
+  const onSave = (data: { lines: QuoteLineInput[] }) => {
+    console.log("Saving final quote:", data, simulation);
+    alert("Quotation saved successfully!");
+  };
+
+  const handleOpenAIExplanation = async () => {
+    try {
+      setIsAIModalOpen(true);
+      setIsAILoading(true);
+      const token = localStorage.getItem("dealflow_token");
+      const quoteTarget = dealId === "d-1" ? "q-1" : "q-1"; // Map to active quotation
+      const res = await axios.post(
+        `${API_BASE_URL}/api/v1/quotations/${quoteTarget}/ai-explanation`,
+        {},
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        }
+      );
+      setAIData(res.data);
+    } catch (err: any) {
+      console.error("AI explanation error:", err);
+      setAIData({
+        ai_status: "error",
+        summary: "Could not retrieve AI explanation. Check permissions.",
+        risks: ["Authorization check or API error."],
+        recommendations: ["Ensure your account role is authorized."]
+      });
+    } finally {
+      setIsAILoading(false);
+    }
+  };
+
+  // Role Access Check: Only Sales Rep, Sales Manager, Finance/Ops (Hide for Customer)
+  const isAuthorizedForAI = !user || ["sales", "sales_rep", "manager", "sales_manager", "finance", "ops", "admin"].includes(user.role?.toLowerCase() || "");
 
   if (!products) {
     return <div className="p-8 text-[13px] text-foreground-muted">Loading deal workspace...</div>;
@@ -98,6 +137,19 @@ export default function DealPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* Unobtrusive ⓘ AI Button on top-right of quotation workspace */}
+          {isAuthorizedForAI && (
+            <button
+              type="button"
+              onClick={handleOpenAIExplanation}
+              className="h-8 px-3 rounded-md bg-primary/10 border border-primary/20 text-primary text-[13px] font-medium flex items-center gap-1.5 hover:bg-primary/20 transition-all shadow-sm"
+              title="Explain Quotation with AI (Local Ollama Intelligence)"
+            >
+              <Info className="w-4 h-4" />
+              <span className="font-semibold">ⓘ Explain with AI</span>
+            </button>
+          )}
+
           <button 
             type="button" 
             onClick={copyPortalLink}
@@ -129,7 +181,22 @@ export default function DealPage() {
           
           {/* Left Column: Line Items (70%) */}
           <div className="flex-1 min-w-0">
-            <div className="bg-background rounded-lg border border-border p-5 shadow-sm">
+            <div className="bg-background rounded-lg border border-border p-5 shadow-sm relative">
+              
+              {/* Unobtrusive Card Top-Right ⓘ AI Button */}
+              {isAuthorizedForAI && (
+                <div className="absolute top-4 right-4 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleOpenAIExplanation}
+                    className="p-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all"
+                    title="Explain Quotation with AI"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit(onSave)}>
                 <QuoteLineTable control={control} register={register} products={products} />
               </form>
@@ -143,6 +210,16 @@ export default function DealPage() {
           
         </div>
       </div>
+
+      {/* AI Explanation Modal */}
+      <AIExplanationModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        isLoading={isAILoading}
+        data={aiData}
+        quoteId={dealId}
+      />
+
     </div>
   );
 }

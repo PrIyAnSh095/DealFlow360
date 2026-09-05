@@ -50,3 +50,17 @@ class FulfillmentAllocation(Base):
     order = relationship("Order", back_populates="allocations")
     quote_line = relationship("QuoteLine")
     warehouse = relationship("Warehouse")
+
+class Backorder(Base):
+    __tablename__ = "backorders"
+
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    order_id = Column(String, ForeignKey("orders.id"), nullable=False)
+    product_id = Column(String, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Integer, nullable=False)
+    status = Column(String, default="PENDING")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    order = relationship("Order")
+    product = relationship("Product")
+

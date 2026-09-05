@@ -3,11 +3,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from src.core.database import get_db
+from src.core.security import get_current_user
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
 from src.services.pricing_service import recalculate_quotation
 from src.services.approval_service import submit_quote_for_approval
+from src.services.ai_service import ai_service
+from src.services.audit_service import log_audit_event
 
 router = APIRouter()
 
@@ -105,3 +108,39 @@ def submit_quote(quotation_id: str, db: Session = Depends(get_db)):
         q.status = "APPROVED"
         db.commit()
         return {"status": "APPROVED", "message": "Quotation approved automatically (Low Risk)"}
+
+@router.post("/{quotation_id}/ai-explanation")
+def get_quotation_ai_explanation(
+    quotation_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generates an AI quotation explanation for authorized roles only.
+    Forbidden for Customer / Customer Portal roles (returns 403).
+    """
+    role = current_user.get("role", "").lower()
+    if role in ["customer", "client"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role 'customer' is not authorized to access quotation AI explanations."
+        )
+
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    context = ai_service.build_quotation_ai_context(db, quotation_id)
+    explanation = ai_service.generate_explanation(context, role=role)
+
+    log_audit_event(
+        db,
+        user_id=current_user.get("sub", "system"),
+        action="AI_EXPLANATION_REQUESTED",
+        entity_type="Quotation",
+        entity_id=quotation_id,
+        details=f"User with role '{role}' requested AI explanation for quote {quotation_id}"
+    )
+
+    return explanation
+

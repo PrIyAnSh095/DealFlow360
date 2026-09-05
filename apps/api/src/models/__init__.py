@@ -9,6 +9,7 @@ from src.models.customer import CustomerTier, Customer
 from src.models.pricing import Category, PriceList, PriceListItem, DiscountPolicy, ApprovalRule
 from src.models.billing import SubscriptionPlan, Subscription, SubscriptionLine, BillingScheduleItem, Invoice, InvoiceLine, Payment
 from src.models.audit import AuditEvent
+from src.models.ai_config import CompanyAIConfig
 
 __all__ = [
     "User",
@@ -38,4 +39,6 @@ __all__ = [
     "InvoiceLine",
     "Payment",
     "AuditEvent",
+    "CompanyAIConfig",
 ]
+

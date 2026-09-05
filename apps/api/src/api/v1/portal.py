@@ -1,18 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Optional
 from src.core.database import get_db
 from src.models.quotation import Quotation, QuoteLine
 from src.models.deal import Deal
 from src.models.portal import QuoteMessage
-from src.schemas.portal import PublicQuotationResponse, QuoteMessageResponse, QuoteMessageCreate
+from src.schemas.portal import PublicQuotationResponse, QuoteMessageResponse, QuoteMessageCreate, PublicQuoteLineResponse
+from src.services.negotiation_service import process_customer_counter_offer
 
 router = APIRouter()
 
 def get_public_quote_or_404(public_id: str, db: Session) -> tuple[Quotation, Deal]:
     quote = db.query(Quotation).filter(Quotation.id == public_id).first()
     
-    # Fallback for MVP: if public_id is actually a deal_id, find the latest quote for that deal
     if not quote:
         quote = db.query(Quotation).filter(Quotation.deal_id == public_id).order_by(Quotation.created_at.desc()).first()
         
@@ -29,7 +29,6 @@ def get_public_quote_or_404(public_id: str, db: Session) -> tuple[Quotation, Dea
 def get_public_quote(public_id: str, db: Session = Depends(get_db)):
     quote, deal = get_public_quote_or_404(public_id, db)
     
-    # We do NOT include cost, margin, or risk_score here.
     resp = PublicQuotationResponse(
         id=quote.id,
         status=quote.status,
@@ -41,14 +40,10 @@ def get_public_quote(public_id: str, db: Session = Depends(get_db)):
         lines=[]
     )
     
-    # Attach lines safely
     lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id).all()
-    # We can use the QuoteLine schema which includes product details
-    # The frontend needs to know product names
     for line in lines:
         from src.models.product import Product
         product = db.query(Product).filter(Product.id == line.product_id).first()
-        from src.schemas.portal import PublicQuoteLineResponse
         
         resp.lines.append(PublicQuoteLineResponse(
             id=line.id,
@@ -79,7 +74,6 @@ def post_quote_message(public_id: str, payload: QuoteMessageCreate, db: Session 
     )
     db.add(msg)
     
-    # Change status to NEGOTIATION if the customer comments on a PENDING or APPROVED quote
     if payload.sender_type == "CUSTOMER" and quote.status in ["APPROVED", "SENT"]:
         quote.status = "NEGOTIATION"
         
@@ -87,17 +81,39 @@ def post_quote_message(public_id: str, payload: QuoteMessageCreate, db: Session 
     db.refresh(msg)
     return msg
 
+@router.post("/quotes/{public_id}/counter")
+def counter_offer(
+    public_id: str,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Customer submits line discount counters and message.
+    Recalculates quote and routes for reapproval if thresholds are exceeded.
+    """
+    quote, deal = get_public_quote_or_404(public_id, db)
+    line_discounts = payload.get("line_discounts", {})
+    message = payload.get("message")
+    
+    updated_quote = process_customer_counter_offer(db, quote.id, line_discounts, message)
+    return {
+        "message": "Counter offer submitted successfully",
+        "quotation_id": updated_quote.id,
+        "status": updated_quote.status,
+        "total": updated_quote.total,
+        "requires_approval": updated_quote.requires_approval
+    }
+
 @router.post("/quotes/{public_id}/confirm")
 def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     quote, deal = get_public_quote_or_404(public_id, db)
     
-    if quote.status not in ["APPROVED", "SENT", "NEGOTIATION"]:
+    if quote.status not in ["APPROVED", "SENT", "NEGOTIATION", "CUSTOMER_REVIEW"]:
         raise HTTPException(status_code=400, detail="Quote cannot be confirmed in its current state")
         
     quote.status = "ACCEPTED"
     deal.status = "won"
     
-    # Log the action automatically as a message
     msg = QuoteMessage(
         quotation_id=quote.id,
         content="Customer formally accepted the quotation.",

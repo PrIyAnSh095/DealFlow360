@@ -91,11 +91,32 @@ export default function SignupPage() {
             {...register("password")}
             id="password"
             type="password"
+            placeholder="••••••••"
             className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
             disabled={isSubmitting}
           />
           {errors.password && (
             <p className="text-[12px] font-medium text-danger">{errors.password.message}</p>
+          )}
+          <p className="text-[11px] text-foreground-muted">
+            Must contain 8+ chars with uppercase, lowercase, number & special char.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[13px] font-medium text-foreground" htmlFor="confirmPassword">
+            Confirm password
+          </label>
+          <input
+            {...register("confirmPassword")}
+            id="confirmPassword"
+            type="password"
+            placeholder="••••••••"
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isSubmitting}
+          />
+          {errors.confirmPassword && (
+            <p className="text-[12px] font-medium text-danger">{errors.confirmPassword.message}</p>
           )}
         </div>
         
@@ -142,3 +163,4 @@ export default function SignupPage() {
     </div>
   );
 }
+

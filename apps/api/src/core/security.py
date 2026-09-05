@@ -1,6 +1,9 @@
 import hashlib
+import re
+import secrets
+import string
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -11,6 +14,41 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+WEAK_PASSWORDS = {"password", "123456", "12345678", "admin123", "qwerty", "letmein", "dealflow"}
+
+def validate_password_strength(password: str) -> Tuple[bool, str]:
+    """Authoritative backend password strength validation."""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter."
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one number."
+    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>\/?]", password):
+        return False, "Password must contain at least one special character."
+    if password.lower() in WEAK_PASSWORDS:
+        return False, "Password is too common or weak. Please choose a stronger password."
+    return True, "Password meets strength requirements."
+
+def generate_secure_password(length: int = 16) -> str:
+    """Generate a cryptographically secure random password meeting all password policies."""
+    if length < 12:
+        length = 12
+    upper = secrets.choice(string.ascii_uppercase)
+    lower = secrets.choice(string.ascii_lowercase)
+    digit = secrets.choice(string.digits)
+    special = secrets.choice("!@#$%^&*()_+-=")
+    
+    remaining_length = length - 4
+    all_chars = string.ascii_letters + string.digits + "!@#$%^&*()_+-="
+    remaining = "".join(secrets.choice(all_chars) for _ in range(remaining_length))
+    
+    password_chars = list(upper + lower + digit + special + remaining)
+    secrets.SystemRandom().shuffle(password_chars)
+    return "".join(password_chars)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return get_password_hash(plain_password) == hashed_password
@@ -78,3 +116,4 @@ def require_roles(allowed_roles: List[str]):
             )
         return current_user
     return role_checker
+

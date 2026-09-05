@@ -6,9 +6,10 @@ from src.api.deps import RoleChecker
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
+from src.models.user import User
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
 from src.schemas.operations import (
-    OrderResponse, WarehouseResponse, 
+    OrderResponse, WarehouseResponse, WarehouseCreate, WarehouseUpdate,
     FulfillmentRecommendationResponse, FulfillmentRecommendationLine, 
     FulfillmentAllocationInput, FulfillmentRequest
 )
@@ -18,6 +19,37 @@ router = APIRouter()
 @router.get("/warehouses", response_model=List[WarehouseResponse])
 def get_warehouses(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     return db.query(Warehouse).all()
+
+@router.post("/warehouses", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)
+def create_warehouse(warehouse_in: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = Warehouse(**warehouse_in.model_dump())
+    db.add(db_warehouse)
+    db.commit()
+    db.refresh(db_warehouse)
+    return db_warehouse
+
+@router.patch("/warehouses/{warehouse_id}", response_model=WarehouseResponse)
+def update_warehouse(warehouse_id: str, warehouse_in: WarehouseUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not db_warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+        
+    update_data = warehouse_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_warehouse, field, value)
+        
+    db.commit()
+    db.refresh(db_warehouse)
+    return db_warehouse
+
+@router.delete("/warehouses/{warehouse_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_warehouse(warehouse_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+    db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not db_warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+        
+    db.delete(db_warehouse)
+    db.commit()
 
 @router.get("/orders", response_model=List[OrderResponse])
 def get_pending_orders(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
@@ -32,8 +64,8 @@ def get_pending_orders(db: Session = Depends(get_db), current_user: User = Depen
             quotation_id=order.quotation_id,
             status=order.status,
             created_at=order.created_at,
-            customer_name=deal.customer_name if deal else "Unknown",
-            deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+            customer_name=deal.customer.name if deal and deal.customer else "Unknown",
+            deal_name=f"Order for {deal.customer.name}" if deal and deal.customer else "Unknown"
         ))
     return resp
 
@@ -58,8 +90,8 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db), cu
         quotation_id=order.quotation_id,
         status=order.status,
         created_at=order.created_at,
-        customer_name=deal.customer_name if deal else "Unknown",
-        deal_name=f"Order for {deal.customer_name}" if deal else "Unknown"
+        customer_name=deal.customer.name if deal and deal.customer else "Unknown",
+        deal_name=f"Order for {deal.customer.name}" if deal and deal.customer else "Unknown"
     )
 
 @router.get("/fulfillment/recommend/{order_id}", response_model=FulfillmentRecommendationResponse)

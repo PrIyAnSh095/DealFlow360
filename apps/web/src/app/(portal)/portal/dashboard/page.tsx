@@ -16,7 +16,7 @@ import {
 import { useEffect, useState } from "react";
 import { customerApi, CustomerQuotation, CustomerOrder } from "@/features/customer/api";
 import { cn } from "@/lib/utils";
-import { ThemeSegmentedToggle } from "@/components/ui/theme-toggle";
+
 
 function formatINR(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -53,24 +53,30 @@ function StatusBadge({ status }: { status: string }) {
 export default function CustomerDashboardPage() {
   const [quotations, setQuotations] = useState<CustomerQuotation[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       customerApi.getQuotations(),
-      customerApi.getOrders()
-    ]).then(([qData, oData]) => {
+      customerApi.getOrders(),
+      customerApi.getInvoices(),
+      customerApi.getSubscriptions()
+    ]).then(([qData, oData, iData, sData]) => {
       setQuotations(qData);
       setOrders(oData);
+      setInvoices(iData);
+      setSubscriptions(sData);
     }).finally(() => {
       setIsLoading(false);
     });
   }, []);
 
   const pendingNegotiations = quotations.filter((q) => q.status === "NEGOTIATION");
-  const overdueInvoices: any[] = [];
-  const activeSubscriptions: any[] = [];
-  const totalMonthlyRecurring = 0;
+  const overdueInvoices = invoices.filter((i) => i.status === "UNPAID" || i.status === "overdue" || i.status === "pending");
+  const activeSubscriptions = subscriptions.filter((s) => s.status === "ACTIVE" || s.status === "active");
+  const totalMonthlyRecurring = activeSubscriptions.reduce((sum, sub) => sum + (sub.amount || 0), 0);
 
   if (isLoading) {
     return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading portal...</div>;
@@ -89,10 +95,7 @@ export default function CustomerDashboardPage() {
           </p>
         </div>
 
-        {/* Theme Mode Toggle (White / Dark) */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <ThemeSegmentedToggle />
-        </div>
+
       </div>
 
       {/* Stat cards */}
@@ -144,7 +147,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-danger transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            0
+            {overdueInvoices.length}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Invoices Due
@@ -316,17 +319,17 @@ export default function CustomerDashboardPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-medium text-foreground truncate">
-                        {inv.invoiceNumber}
+                        {inv.invoice_number || inv.id.slice(0,8)}
                       </p>
                       <p className="text-[11px] text-foreground-muted">
-                        Due {inv.dueDate}
+                        Due {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : 'N/A'}
                       </p>
                     </div>
                     <div className="text-right ml-4 shrink-0">
                       <p
                         className={cn(
                           "text-[13px] font-semibold",
-                          inv.status === "overdue"
+                          inv.status === "overdue" || inv.status === "UNPAID"
                             ? "text-danger"
                             : "text-foreground"
                         )}
@@ -358,7 +361,7 @@ export default function CustomerDashboardPage() {
                 <div key={sub.id} className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[13px] font-medium text-foreground">
-                      {sub.productName}
+                      {sub.product_name || "Subscription"}
                     </p>
                     <p className="text-[13px] font-semibold text-foreground">
                       {formatINR(sub.amount)}/mo
@@ -376,7 +379,7 @@ export default function CustomerDashboardPage() {
                     </span>
                   </div>
                   <p className="text-[11px] text-foreground-muted">
-                    Renews {sub.nextBillingDate}
+                    Renews {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'Next Month'}
                   </p>
                 </div>
               ))}

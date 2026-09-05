@@ -36,8 +36,8 @@ def get_public_quote(public_id: str, db: Session = Depends(get_db)):
         subtotal=quote.subtotal,
         total_discount=quote.total_discount,
         total=quote.total,
-        deal_name=f"Quote for {deal.customer_name}",
-        customer_name=deal.customer_name,
+        deal_name=f"Quote for {deal.customer.company if deal.customer else 'Unknown'}",
+        customer_name=deal.customer.name if deal.customer else "Unknown",
         lines=[]
     )
     

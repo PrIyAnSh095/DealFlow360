@@ -146,6 +146,29 @@ def seed_db():
     db.add(log)
     db.commit()
 
+    # 8. Create Warehouses and Stock
+    from src.models.operations import Warehouse, Stock
+    w1 = db.query(Warehouse).filter(Warehouse.id == "w-1").first()
+    if not w1:
+        w1 = Warehouse(id="w-1", name="East Coast Hub", location="New York, NY")
+        db.add(w1)
+    
+    w2 = db.query(Warehouse).filter(Warehouse.id == "w-2").first()
+    if not w2:
+        w2 = Warehouse(id="w-2", name="West Coast Hub", location="San Francisco, CA")
+        db.add(w2)
+    db.commit()
+
+    # Add Stock
+    s1 = db.query(Stock).filter(Stock.product_id == p1.id, Stock.warehouse_id == w1.id).first()
+    if not s1:
+        db.add(Stock(product_id=p1.id, warehouse_id=w1.id, quantity_on_hand=5, quantity_allocated=0))
+    s2 = db.query(Stock).filter(Stock.product_id == p1.id, Stock.warehouse_id == w2.id).first()
+    if not s2:
+        db.add(Stock(product_id=p1.id, warehouse_id=w2.id, quantity_on_hand=15, quantity_allocated=0))
+    db.commit()
+
+
     print("Database seeded successfully with valid users, products, deals, and approvals.")
 
 if __name__ == "__main__":

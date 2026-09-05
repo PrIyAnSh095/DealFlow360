@@ -1,30 +1,21 @@
 import { Order, Warehouse, FulfillmentRecommendationResponse, FulfillmentAllocationInput } from "./types";
-
-const API_BASE = "http://localhost:8000/api/v1";
+import { apiClient } from "@/lib/api-client";
 
 export async function fetchWarehouses(): Promise<Warehouse[]> {
-  const res = await fetch(`${API_BASE}/operations/warehouses`);
-  if (!res.ok) throw new Error("Failed to fetch warehouses");
-  return res.json();
+  const res = await apiClient.get<Warehouse[]>('/operations/warehouses');
+  return res.data;
 }
 
 export async function fetchPendingOrders(): Promise<Order[]> {
-  const res = await fetch(`${API_BASE}/operations/orders`);
-  if (!res.ok) throw new Error("Failed to fetch pending orders");
-  return res.json();
+  const res = await apiClient.get<Order[]>('/operations/orders');
+  return res.data;
 }
 
 export async function fetchFulfillmentRecommendation(orderId: string): Promise<FulfillmentRecommendationResponse> {
-  const res = await fetch(`${API_BASE}/operations/fulfillment/recommend/${orderId}`);
-  if (!res.ok) throw new Error("Failed to fetch recommendation");
-  return res.json();
+  const res = await apiClient.get<FulfillmentRecommendationResponse>(`/operations/fulfillment/recommend/${orderId}`);
+  return res.data;
 }
 
 export async function submitFulfillment(orderId: string, allocations: FulfillmentAllocationInput[]): Promise<void> {
-  const res = await fetch(`${API_BASE}/operations/fulfillment/${orderId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ allocations })
-  });
-  if (!res.ok) throw new Error("Failed to submit fulfillment");
+  await apiClient.post(`/operations/fulfillment/${orderId}`, { allocations });
 }

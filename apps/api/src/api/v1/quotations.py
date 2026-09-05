@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from src.core.database import get_db
-from src.api.deps import get_current_user
+from src.api.deps import QUOTE_VIEW_ROLES, QUOTE_WRITE_ROLES, RoleChecker
 from src.models.user import User
 from src.models.product import Product
 from src.models.quotation import Quotation, QuoteLine
@@ -18,7 +18,7 @@ from src.models.admin import DiscountPolicy, ApprovalRule
 # Removed hardcoded CATEGORY_DISCOUNT_LIMITS
 
 @router.get("/products", response_model=List[ProductResponse])
-def get_products(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(QUOTE_VIEW_ROLES))):
     return db.query(Product).filter(Product.active == True).all()
 
 @router.post("/{quotation_id}/recalculate", response_model=QuoteRecalculateResponse)
@@ -26,7 +26,7 @@ def recalculate_quotation(
     quotation_id: str, 
     request: QuoteRecalculateRequest, 
     db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(QUOTE_WRITE_ROLES))
 ):
     subtotal = Decimal('0.0')
     total_discount = Decimal('0.0')
@@ -121,7 +121,7 @@ def recalculate_quotation(
 def create_quotation(
     request: QuotationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(QUOTE_WRITE_ROLES))
 ):
     deal = db.query(Deal).filter(Deal.id == request.deal_id).first()
     if not deal:
@@ -172,7 +172,7 @@ def create_quotation(
 def get_quotation(
     quotation_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(QUOTE_VIEW_ROLES))
 ):
     quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
     if not quotation:
@@ -182,7 +182,7 @@ def get_quotation(
 @router.get("/", response_model=List[QuotationResponse])
 def get_quotations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(QUOTE_VIEW_ROLES))
 ):
     quotations = db.query(Quotation).all()
     return quotations
@@ -191,7 +191,7 @@ def get_quotations(
 def submit_quotation(
     quotation_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(QUOTE_WRITE_ROLES))
 ):
     quotation = db.query(Quotation).filter(Quotation.id == quotation_id).first()
     if not quotation:

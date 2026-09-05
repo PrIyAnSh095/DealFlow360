@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import List
-from src.api.deps import get_db, get_current_user
+from src.api.deps import SEARCH_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.deal import Deal
 from src.models.customer import Customer
@@ -22,7 +22,7 @@ class SearchResult(BaseModel):
 def search_global(
     q: str = "",
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(SEARCH_ROLES))
 ):
     if not q or len(q) < 2:
         return []

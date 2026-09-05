@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 from decimal import Decimal
 
-from src.api.deps import get_db, get_current_user
+from src.api.deps import ANALYTICS_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.deal import Deal
 from src.models.quotation import Quotation
@@ -30,7 +30,7 @@ class AnalyticsDashboard(BaseModel):
     discount_trend: List[TrendPoint]
 
 @router.get("/", response_model=AnalyticsDashboard)
-def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(ANALYTICS_ROLES))):
     # Total revenue (sum of paid invoices)
     total_rev = db.query(func.sum(Invoice.amount_paid)).scalar() or Decimal('0.0')
     

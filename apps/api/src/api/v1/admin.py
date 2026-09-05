@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from src.api.deps import get_db, RoleChecker
+from src.api.deps import INTERNAL_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.admin import (
     PricingRule, SubscriptionPlan, GlobalSetting, 
@@ -150,7 +150,7 @@ def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends
 
 # --- PRODUCTS (Admin CRUD) ---
 @router.get("/products", response_model=List[ProductResponse])
-def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(Product).all()
 
 @router.post("/products", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
@@ -248,7 +248,7 @@ def get_audit_logs(db: Session = Depends(get_db), current_user: User = Depends(R
 
 # --- CATEGORIES ---
 @router.get("/categories", response_model=List[CategoryResponse])
-def get_categories(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_categories(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(Category).all()
 
 @router.post("/categories", response_model=CategoryResponse, status_code=status.HTTP_201_CREATED)
@@ -284,7 +284,7 @@ def delete_category(cat_id: str, db: Session = Depends(get_db), current_user: Us
 
 # --- CUSTOMER TIERS ---
 @router.get("/customer-tiers", response_model=List[CustomerTierResponse])
-def get_customer_tiers(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_customer_tiers(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(CustomerTier).all()
 
 @router.post("/customer-tiers", response_model=CustomerTierResponse, status_code=status.HTTP_201_CREATED)
@@ -320,7 +320,7 @@ def delete_customer_tier(tier_id: str, db: Session = Depends(get_db), current_us
 
 # --- DISCOUNT POLICIES ---
 @router.get("/discount-policies", response_model=List[DiscountPolicyResponse])
-def get_discount_policies(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_discount_policies(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(DiscountPolicy).all()
 
 @router.post("/discount-policies", response_model=DiscountPolicyResponse, status_code=status.HTTP_201_CREATED)
@@ -356,7 +356,7 @@ def delete_discount_policy(policy_id: str, db: Session = Depends(get_db), curren
 
 # --- APPROVAL RULES ---
 @router.get("/approval-rules", response_model=List[ApprovalRuleResponse])
-def get_approval_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_approval_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(ApprovalRule).all()
 
 @router.post("/approval-rules", response_model=ApprovalRuleResponse, status_code=status.HTTP_201_CREATED)
@@ -392,7 +392,7 @@ def delete_approval_rule(rule_id: str, db: Session = Depends(get_db), current_us
 
 # --- APPROVAL CHAINS ---
 @router.get("/approval-chains", response_model=List[ApprovalChainResponse])
-def get_approval_chains(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin", "sales", "manager", "finance"]))):
+def get_approval_chains(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
     return db.query(ApprovalChain).all()
 
 @router.post("/approval-chains", response_model=ApprovalChainResponse, status_code=status.HTTP_201_CREATED)

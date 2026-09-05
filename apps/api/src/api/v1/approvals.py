@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from src.core.database import get_db
-from src.api.deps import get_current_user
+from src.api.deps import APPROVAL_ACTION_ROLES, APPROVAL_VIEW_ROLES, RoleChecker
 from src.models.user import User
 from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.models.quotation import Quotation
@@ -12,7 +12,7 @@ from src.schemas.approval import ApprovalActionRequest, ApprovalRequestResponse
 router = APIRouter()
 
 @router.get("", response_model=List[ApprovalRequestResponse])
-def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_VIEW_ROLES))):
     # For now, we return all approvals. In a real app we'd filter by role.
     reqs = db.query(ApprovalRequest).order_by(ApprovalRequest.created_at.desc()).all()
     
@@ -63,13 +63,13 @@ def perform_approval_action(req_id: str, action: str, next_status: str, payload:
     return {"message": "Success"}
 
 @router.post("/{id}/approve")
-def approve_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def approve_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
     return perform_approval_action(id, "approve", "APPROVED", payload, db, current_user)
 
 @router.post("/{id}/reject")
-def reject_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def reject_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
     return perform_approval_action(id, "reject", "REJECTED", payload, db, current_user)
 
 @router.post("/{id}/return")
-def return_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def return_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
     return perform_approval_action(id, "return", "RETURNED", payload, db, current_user)

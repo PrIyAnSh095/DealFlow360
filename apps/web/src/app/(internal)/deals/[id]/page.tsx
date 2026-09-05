@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { QuoteLineTable } from "@/features/quotations/components/quote-line-table";
 import { RiskSimulatorPanel } from "@/features/quotations/components/risk-simulator-panel";
 import { useProducts, useRecalculateQuote } from "@/features/quotations/hooks";
+import { quotationsApi } from "@/features/quotations/api";
 import { QuoteRecalculateResponse, QuoteRecalculateRequest, QuoteLineInput } from "@/features/quotations/types";
 import { Save, FileText, Copy } from "lucide-react";
 
@@ -15,9 +16,10 @@ export default function DealPage() {
   
   const { data: products } = useProducts();
   const recalculateMutation = useRecalculateQuote();
+  const { mutateAsync: recalculate, isPending: isSimulating } = recalculateMutation;
   
   const [simulation, setSimulation] = useState<QuoteRecalculateResponse | null>(null);
-  const [isSimulating, setIsSimulating] = useState(false);
+  const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
 
   const { control, register, handleSubmit } = useForm<{ lines: QuoteLineInput[] }>({
     defaultValues: {
@@ -38,7 +40,6 @@ export default function DealPage() {
     const validLines = watchedLines?.filter(l => l.product_id && l.product_id !== "") || [];
     
     if (validLines.length > 0) {
-      setIsSimulating(true);
       const timer = setTimeout(() => {
         const req: QuoteRecalculateRequest = {
           lines: validLines.map(l => ({
@@ -48,32 +49,57 @@ export default function DealPage() {
           }))
         };
         
-        recalculateMutation.mutateAsync({ quotationId: dealId, request: req })
+        recalculate({ quotationId: dealId, request: req })
           .then(data => {
             setSimulation(data);
           })
           .catch(err => {
             console.error("Simulation error", err);
-          })
-          .finally(() => {
-            setIsSimulating(false);
           });
       }, 500); // 500ms debounce
       
       return () => clearTimeout(timer);
     } else {
-      setSimulation(null);
+      const clearTimer = setTimeout(() => setSimulation(null), 0);
+      return () => clearTimeout(clearTimer);
     }
-  }, [watchedLines, dealId]); // intentionally excluding recalculateMutation to prevent infinite loops
+  }, [watchedLines, dealId, recalculate]);
+
+  useEffect(() => {
+    quotationsApi.getQuotations().then((quotations) => {
+      const latestQuotation = quotations
+        .filter((quotation) => quotation.deal_id === dealId)
+        .sort((a, b) => b.id.localeCompare(a.id))[0];
+      if (latestQuotation) setSavedQuotationId(latestQuotation.id);
+    }).catch(() => {
+      // A missing quotation is expected for a new deal.
+    });
+  }, [dealId]);
 
   const onSave = async (data: { lines: QuoteLineInput[] }) => {
-    // In a full implementation, this would save the actual quote lines to the DB
-    console.log("Saving final quote:", data, simulation);
-    alert("Quote saved successfully!");
+    const lines = data.lines.filter((line) => line.product_id);
+    if (lines.length === 0) {
+      alert("Select at least one product before saving the quotation.");
+      return;
+    }
+
+    try {
+      const quotation = await quotationsApi.createQuotation({ deal_id: dealId, lines });
+      setSavedQuotationId(quotation.id);
+      alert("Quote saved successfully!");
+    } catch (error) {
+      console.error("Failed to save quotation", error);
+      alert("Unable to save the quotation. Please check your access and try again.");
+    }
   };
 
   const copyPortalLink = () => {
-    const url = `${window.location.origin}/portal/${dealId}`;
+    if (!savedQuotationId) {
+      alert("Save the quotation before copying its customer portal link.");
+      return;
+    }
+
+    const url = `${window.location.origin}/portal/${savedQuotationId}`;
     navigator.clipboard.writeText(url);
     alert("Customer Portal link copied to clipboard!");
   };

@@ -1,175 +1,107 @@
-import sys
-import os
-import uuid
-from decimal import Decimal
-from datetime import datetime, timedelta
+"""Seed the local database with the minimum accounts needed for development."""
 
-# Append the directory above `apps/api` so we can import `src`
+import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-from src.core.database import SessionLocal, Base, engine
+from src.core.database import SessionLocal
 from src.core.security import get_password_hash
-from src.models.user import User
 from src.models.customer import Customer
 from src.models.deal import Deal
-from src.models.approval import ApprovalRequest, ApprovalAuditLog
-from src.models.product import Product
-from src.models.quotation import Quotation, QuoteLine
+from src.models.user import User
 
-def seed_db():
+
+SEED_USERS = [
+    {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "name": "DealFlow Admin",
+        "email": "admin@dealflow360.com",
+        "password": "Admin123!",
+        "role": "admin",
+    },
+    {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "name": "DealFlow Finance",
+        "email": "finance@dealflow360.com",
+        "password": "Finance123!",
+        "role": "finance",
+    },
+    {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "name": "DealFlow Sales Rep",
+        "email": "sales.rep@dealflow360.com",
+        "password": "SalesRep123!",
+        "role": "sales_rep",
+    },
+    {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "name": "DealFlow Sales Manager",
+        "email": "sales.manager@dealflow360.com",
+        "password": "SalesManager123!",
+        "role": "sales_manager",
+    },
+    {
+        "id": "00000000-0000-4000-8000-000000000005",
+        "name": "DealFlow Customer",
+        "email": "customer@dealflow360.com",
+        "password": "Customer123!",
+        "role": "customer",
+    },
+]
+
+
+def seed_db() -> None:
     db = SessionLocal()
-    
-    # 1. Create Users
-    admin_pw = get_password_hash("admin123")
-    user = db.query(User).filter(User.email == "admin@dealflow360.com").first()
-    if not user:
-        user = User(
-            name="Admin User",
-            email="admin@dealflow360.com",
-            password_hash=admin_pw,
-            role="admin"
-        )
-        db.add(user)
-    
-    finance = db.query(User).filter(User.email == "finance@dealflow360.com").first()
-    if not finance:
-        finance = User(
-            name="Finance Ops",
-            email="finance@dealflow360.com",
-            password_hash=get_password_hash("finance123"),
-            role="finance"
-        )
-        db.add(finance)
-        
-    sales_rep = db.query(User).filter(User.email == "sales@dealflow360.com").first()
-    if not sales_rep:
-        sales_rep = User(
-            name="Sales Rep",
-            email="sales@dealflow360.com",
-            password_hash=get_password_hash("sales123"),
-            role="sales_rep"
-        )
-        db.add(sales_rep)
+    try:
+        users_by_role = {}
+        for seed_user in SEED_USERS:
+            user = db.query(User).filter(User.email == seed_user["email"]).one_or_none()
+            if user is None:
+                user = User(
+                    id=seed_user["id"],
+                    name=seed_user["name"],
+                    email=seed_user["email"],
+                    password_hash=get_password_hash(seed_user["password"]),
+                    role=seed_user["role"],
+                    is_active=True,
+                )
+                db.add(user)
+            else:
+                user.id = seed_user["id"]
+                user.name = seed_user["name"]
+                user.role = seed_user["role"]
+                user.is_active = True
+                user.password_hash = get_password_hash(seed_user["password"])
+            users_by_role[seed_user["role"]] = user
 
-    customer_user = db.query(User).filter(User.email == "customer@acme.com").first()
-    if not customer_user:
-        customer_user = User(
-            name="Acme Corp Admin",
-            email="customer@acme.com",
-            password_hash=get_password_hash("customer123"),
-            role="customer"
-        )
-        db.add(customer_user)
-        
-    db.commit()
+        db.flush()
 
-    # 2. Create Customer Profile
-    customer = db.query(Customer).filter(Customer.email == "customer@acme.com").first()
-    if not customer:
-        customer = Customer(
-            name="Acme Corp",
-            email="customer@acme.com",
-            company="Acme Corporation",
-            tier="enterprise"
-        )
-        db.add(customer)
+        customer_user = users_by_role["customer"]
+        customer = db.query(Customer).filter(Customer.email == customer_user.email).one_or_none()
+        if customer is None:
+            db.add(
+                Customer(
+                    name=customer_user.name,
+                    email=customer_user.email,
+                    company="DealFlow Customer Company",
+                    tier="standard",
+                )
+            )
+
         db.commit()
+        print("Seeded 5 users (one per role) and 1 customer profile.")
+        for seed_user in SEED_USERS:
+            print(
+                f'{seed_user["role"]}: {seed_user["id"]} | '
+                f'{seed_user["email"]} | {seed_user["password"]}'
+            )
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
-    # 3. Create Products
-    p1 = db.query(Product).filter(Product.sku == "LAP-PRO-16").first()
-    if not p1:
-        p1 = Product(name="Pro Laptop 16 inch", sku="LAP-PRO-16", category="hardware", sales_price=Decimal("150000"), cost=Decimal("120000"))
-        db.add(p1)
-    
-    p2 = db.query(Product).filter(Product.sku == "SRV-L1").first()
-    if not p2:
-        p2 = Product(name="Premium Support L1", sku="SRV-L1", category="service", sales_price=Decimal("25000"), cost=Decimal("5000"))
-        db.add(p2)
-
-    db.commit()
-
-    # 4. Create Deals
-    d1 = Deal(
-        customer_id=customer.id,
-        value=Decimal("850000.00"),
-        status="discovery",
-        risk="low"
-    )
-    d2 = Deal(
-        customer_id=customer.id,
-        value=Decimal("1200000.00"),
-        status="approval",
-        risk="high"
-    )
-    db.add(d1)
-    db.add(d2)
-    db.commit()
-
-    # 5. Create Quotation and Approval for Deal 2
-    q2 = Quotation(
-        deal_id=d2.id,
-        status="PENDING_APPROVAL",
-        total=Decimal("1000000.00"),
-        subtotal=Decimal("1200000.00"),
-        total_discount=Decimal("200000.00"),
-        margin_percentage=Decimal("15.00")
-    )
-    db.add(q2)
-    db.commit()
-    
-    ql1 = QuoteLine(
-        quotation_id=q2.id,
-        product_id=p1.id,
-        quantity=10,
-        unit_price=Decimal("150000.00"),
-        discount_percent=Decimal("20.00")
-    )
-    db.add(ql1)
-    db.commit()
-
-    # 6. Create Approval Request
-    ar = ApprovalRequest(
-        quotation_id=q2.id,
-        requester_id=sales_rep.id,
-        status="PENDING"
-    )
-    db.add(ar)
-    db.commit()
-
-    # 7. Add Audit Log
-    log = ApprovalAuditLog(
-        approval_request_id=ar.id,
-        actor_id=sales_rep.id,
-        action="REQUESTED",
-        reason="Please approve, key account."
-    )
-    db.add(log)
-    db.commit()
-
-    # 8. Create Warehouses and Stock
-    from src.models.operations import Warehouse, Stock
-    w1 = db.query(Warehouse).filter(Warehouse.id == "w-1").first()
-    if not w1:
-        w1 = Warehouse(id="w-1", name="East Coast Hub", location="New York, NY")
-        db.add(w1)
-    
-    w2 = db.query(Warehouse).filter(Warehouse.id == "w-2").first()
-    if not w2:
-        w2 = Warehouse(id="w-2", name="West Coast Hub", location="San Francisco, CA")
-        db.add(w2)
-    db.commit()
-
-    # Add Stock
-    s1 = db.query(Stock).filter(Stock.product_id == p1.id, Stock.warehouse_id == w1.id).first()
-    if not s1:
-        db.add(Stock(product_id=p1.id, warehouse_id=w1.id, quantity_on_hand=5, quantity_allocated=0))
-    s2 = db.query(Stock).filter(Stock.product_id == p1.id, Stock.warehouse_id == w2.id).first()
-    if not s2:
-        db.add(Stock(product_id=p1.id, warehouse_id=w2.id, quantity_on_hand=15, quantity_allocated=0))
-    db.commit()
-
-
-    print("Database seeded successfully with valid users, products, deals, and approvals.")
 
 if __name__ == "__main__":
     seed_db()

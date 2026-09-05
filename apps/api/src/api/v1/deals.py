@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from src.api.deps import get_db, get_current_user
+from src.api.deps import DEAL_VIEW_ROLES, DEAL_WRITE_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.deal import Deal
 from src.models.customer import Customer
@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("/", response_model=List[DealResponse])
 def get_deals(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(DEAL_VIEW_ROLES))
 ):
     """
     Get all deals accessible by the current user.
@@ -25,7 +25,7 @@ def get_deals(
 def get_deal(
     deal_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(DEAL_VIEW_ROLES))
 ):
     deal = db.query(Deal).filter(Deal.id == deal_id).first()
     if not deal:
@@ -36,7 +36,7 @@ def get_deal(
 def create_deal(
     deal_in: DealCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(DEAL_WRITE_ROLES))
 ):
     """
     Create a new deal.
@@ -56,7 +56,7 @@ def update_deal(
     deal_id: str,
     deal_in: DealUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(DEAL_WRITE_ROLES))
 ):
     """
     Update deal (e.g. status transition).

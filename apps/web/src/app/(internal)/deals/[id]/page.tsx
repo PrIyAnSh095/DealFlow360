@@ -7,7 +7,7 @@ import { QuoteLineTable } from "@/features/quotations/components/quote-line-tabl
 import { RiskSimulatorPanel } from "@/features/quotations/components/risk-simulator-panel";
 import { useProducts, useRecalculateQuote } from "@/features/quotations/hooks";
 import { QuoteRecalculateResponse, QuoteRecalculateRequest, QuoteLineInput } from "@/features/quotations/types";
-import { Save, FileText } from "lucide-react";
+import { Save, FileText, Copy } from "lucide-react";
 
 export default function DealPage() {
   const params = useParams();
@@ -72,6 +72,12 @@ export default function DealPage() {
     alert("Quote saved successfully!");
   };
 
+  const copyPortalLink = () => {
+    const url = `${window.location.origin}/portal/${dealId}`;
+    navigator.clipboard.writeText(url);
+    alert("Customer Portal link copied to clipboard!");
+  };
+
   if (!products) {
     return <div className="p-8 text-[13px] text-foreground-muted">Loading deal workspace...</div>;
   }
@@ -92,6 +98,14 @@ export default function DealPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          <button 
+            type="button" 
+            onClick={copyPortalLink}
+            className="h-8 px-3 rounded-md text-[13px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            Copy Portal Link
+          </button>
           <button 
             type="button" 
             className="h-8 px-3 rounded-md text-[13px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors"

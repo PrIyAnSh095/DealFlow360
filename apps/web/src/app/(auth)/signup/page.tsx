@@ -113,6 +113,7 @@ export default function SignupPage() {
             <option value="manager">Sales Manager</option>
             <option value="finance">Finance</option>
             <option value="admin">Administrator</option>
+            <option value="customer">Customer</option>
           </select>
           {errors.role && (
             <p className="text-[12px] font-medium text-danger">{errors.role.message}</p>

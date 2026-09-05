@@ -1,39 +1,68 @@
+"""
+DealFlow360 FastAPI application entry point.
+
+Schema is managed exclusively by Alembic — Base.metadata.create_all()
+is NOT called here. Run `alembic upgrade head` before starting the server.
+"""
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.api.v1 import auth, quotations, approvals, portal, operations, deals, customers, dashboard, health, search, intelligence, billing, analytics, admin
-from src.core.database import engine, Base
 
-# Import all models for SQLAlchemy to register them
-from src.models import user, product, customer, deal, quotation, approval, portal as portal_model, operations as operations_model, billing as billing_model, admin as admin_model
+from src.api.v1 import auth, quotations, approvals, portal, operations
+from src.core.config import get_settings
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="DealFlow360 API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan handler.
 
-# CORS config
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    Startup: validate that settings are loadable (will raise early if
+    DATABASE_URL or AUTH_SECRET are missing from the environment).
 
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["quotations"])
-app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
-app.include_router(portal.router, prefix="/api/v1/portal", tags=["portal"])
-app.include_router(operations.router, prefix="/api/v1/operations", tags=["operations"])
-app.include_router(deals.router, prefix="/api/v1/deals", tags=["deals"])
-app.include_router(customers.router, prefix="/api/v1/customers", tags=["customers"])
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
-app.include_router(health.router, prefix="/api/v1/health", tags=["health"])
-app.include_router(search.router, prefix="/api/v1/search", tags=["search"])
-app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
-app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
-app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
-app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+    Shutdown: nothing to clean up for now.
+    """
+    # Trigger settings validation on startup — fails fast if env vars are missing.
+    settings = get_settings()
+    yield
+    # Shutdown (add cleanup here if needed, e.g. close connection pools)
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+
+    app = FastAPI(
+        title=settings.APP_TITLE,
+        version=settings.APP_VERSION,
+        lifespan=lifespan,
+        # Disable docs in production
+        docs_url="/docs" if settings.APP_ENV != "production" else None,
+        redoc_url="/redoc" if settings.APP_ENV != "production" else None,
+    )
+
+    # ── CORS ──────────────────────────────────────────────────────────────────
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # ── Routers ───────────────────────────────────────────────────────────────
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+    app.include_router(quotations.router, prefix="/api/v1/quotations", tags=["Quotations"])
+    app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["Approvals"])
+    app.include_router(portal.router, prefix="/api/v1/portal", tags=["Portal"])
+    app.include_router(operations.router, prefix="/api/v1/operations", tags=["Operations"])
+
+    # ── Health check ──────────────────────────────────────────────────────────
+    @app.get("/health", tags=["Health"], include_in_schema=False)
+    def health_check():
+        return {"status": "ok", "version": settings.APP_VERSION}
+
+    return app
+
+
+app = create_app()

@@ -3,14 +3,12 @@
 import { useApprovals, useApproveRequest, useRejectRequest } from "@/features/approvals/hooks";
 import { ApprovalRequestResponse } from "@/features/approvals/types";
 import { useState } from "react";
-import { CheckSquare, XCircle, CheckCircle2, AlertTriangle, AlertCircle, Clock, Lock } from "lucide-react";
+import { CheckSquare, XCircle, CheckCircle2, AlertTriangle, AlertCircle, Clock } from "lucide-react";
 import { ApprovalDialog } from "@/features/approvals/components/approval-dialog";
-import { useAuth } from "@/features/auth/auth-context";
 
 export default function ApprovalsPage() {
   const { data: approvals, isLoading } = useApprovals();
   const [selectedApproval, setSelectedApproval] = useState<ApprovalRequestResponse | null>(null);
-  const { user } = useAuth();
 
   if (isLoading) {
     return <div className="p-8 text-[13px] text-foreground-muted">Loading approval queue...</div>;
@@ -63,9 +61,9 @@ export default function ApprovalsPage() {
                   <td className="px-4 py-3 text-foreground-muted">{req.customer_name}</td>
                   <td className="px-4 py-3 text-right font-medium">${req.quote_total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 text-right">
-                    <span className={`inline-flex items-center gap-1 font-bold ${Number(req.quote_margin) < 20 ? 'text-danger' : 'text-success'}`}>
-                      {Number(req.quote_margin) < 20 && <AlertTriangle className="w-3 h-3" />}
-                      {Number(req.quote_margin).toFixed(1)}%
+                    <span className={`inline-flex items-center gap-1 font-bold ${req.quote_margin && req.quote_margin < 20 ? 'text-danger' : 'text-success'}`}>
+                      {req.quote_margin && req.quote_margin < 20 && <AlertTriangle className="w-3 h-3" />}
+                      {req.quote_margin?.toFixed(1)}%
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -74,18 +72,12 @@ export default function ApprovalsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {user?.role === "sales" ? (
-                       <span className="inline-flex items-center gap-1 text-[11px] text-foreground-muted bg-muted px-2 py-1 rounded">
-                         <Lock className="w-3 h-3" /> Read Only
-                       </span>
-                    ) : (
-                      <button 
-                        onClick={() => setSelectedApproval(req)}
-                        className="px-3 py-1 bg-primary text-primary-foreground rounded text-[12px] font-medium hover:bg-primary/90 transition-colors"
-                      >
-                        Review
-                      </button>
-                    )}
+                    <button 
+                      onClick={() => setSelectedApproval(req)}
+                      className="px-3 py-1 bg-primary text-primary-foreground rounded text-[12px] font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Review
+                    </button>
                   </td>
                 </tr>
               ))

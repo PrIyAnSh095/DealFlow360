@@ -1,64 +1,21 @@
 "use client";
 
-import { Bell, Search, User, LogOut, ChevronRight, Loader2 } from "lucide-react";
+import { Bell, Search, User, LogOut, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/features/auth/auth-context";
-import { useState, useEffect, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { searchApi, SearchResult } from "@/features/search/api";
 
 export function Topbar() {
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  
   const pathname = usePathname();
-  const router = useRouter();
   
+  // Very naive breadcrumb logic for demo purposes
   const paths = pathname.split('/').filter(Boolean);
+  
   const isActive = (path: string) => pathname.startsWith(path);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    setIsSearching(true);
-    const delayDebounceFn = setTimeout(() => {
-      searchApi.globalSearch(searchQuery)
-        .then(res => {
-          setSearchResults(res);
-          setShowSearchDropdown(true);
-        })
-        .catch(console.error)
-        .finally(() => setIsSearching(false));
-    }, 300);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  const handleSearchResultClick = (url: string) => {
-    setShowSearchDropdown(false);
-    setSearchQuery("");
-    router.push(url);
-  };
 
   return (
     <header className="h-14 border-b border-border bg-surface px-6 flex items-center justify-between sticky top-0 z-10">
@@ -75,40 +32,13 @@ export function Topbar() {
           ))}
         </div>
 
-        <div className="relative w-full max-w-sm ml-auto md:ml-4" ref={searchRef}>
+        <div className="relative w-full max-w-sm ml-auto md:ml-4">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-foreground-muted" />
           <input
             type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => { if (searchResults.length > 0) setShowSearchDropdown(true); }}
             placeholder="Search deals, quotes, customers..."
             className="w-full pl-9 pr-4 py-1.5 bg-background border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-foreground-muted"
           />
-          {isSearching && (
-            <Loader2 className="absolute right-2.5 top-2 h-4 w-4 text-foreground-muted animate-spin" />
-          )}
-          
-          {showSearchDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border rounded-md shadow-lg overflow-hidden z-50">
-              <div className="max-h-64 overflow-y-auto py-1">
-                {searchResults.map((result, idx) => (
-                  <button
-                    key={`${result.id}-${idx}`}
-                    onClick={() => handleSearchResultClick(result.url)}
-                    className="w-full text-left px-3 py-2 hover:bg-muted flex flex-col items-start transition-colors"
-                  >
-                    <span className="text-[13px] font-medium text-foreground">
-                      {result.title}
-                    </span>
-                    <span className="text-[11px] text-foreground-muted">
-                      {result.type} • {result.subtitle}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
       
@@ -117,6 +47,7 @@ export function Topbar() {
         
         <button className="relative p-2 rounded-md hover:bg-muted text-foreground-muted hover:text-foreground transition-colors">
           <Bell className="h-4 w-4" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full ring-2 ring-surface" />
         </button>
         
         <div className="relative ml-2">
@@ -134,8 +65,14 @@ export function Topbar() {
                 <p className="text-[11px] text-foreground-muted truncate capitalize">{user?.role || "Unknown Role"}</p>
               </div>
               <div className="flex flex-col gap-1 p-2 border-b border-border">
-                <Link href="/settings" onClick={() => setShowDropdown(false)} className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/settings') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
-                  Settings
+                <Link href="/deals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/deals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Pipeline
+                </Link>
+                <Link href="/approvals" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/approvals') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Approvals
+                </Link>
+                <Link href="/operations" className={`text-[13px] px-2 py-1 rounded hover:bg-muted font-medium transition-colors ${isActive('/operations') ? 'text-primary' : 'text-foreground-muted hover:text-foreground'}`}>
+                  Operations
                 </Link>
               </div>
               <button

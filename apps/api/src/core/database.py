@@ -8,6 +8,7 @@ anywhere in application code.
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import NullPool
+from functools import lru_cache
 
 from src.core.config import get_settings
 

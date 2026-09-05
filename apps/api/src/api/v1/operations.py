@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from src.core.database import get_db
+from src.api.deps import RoleChecker
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
@@ -15,11 +16,11 @@ from src.schemas.operations import (
 router = APIRouter()
 
 @router.get("/warehouses", response_model=List[WarehouseResponse])
-def get_warehouses(db: Session = Depends(get_db)):
+def get_warehouses(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     return db.query(Warehouse).all()
 
 @router.get("/orders", response_model=List[OrderResponse])
-def get_pending_orders(db: Session = Depends(get_db)):
+def get_pending_orders(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     orders = db.query(Order).filter(Order.status == "pending_fulfillment").all()
     resp = []
     for order in orders:
@@ -37,7 +38,7 @@ def get_pending_orders(db: Session = Depends(get_db)):
     return resp
 
 @router.post("/orders/{quotation_id}", response_model=OrderResponse)
-def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
+def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     quote = db.query(Quotation).filter(Quotation.id == quotation_id).first()
     if not quote or quote.status != "ACCEPTED":
         raise HTTPException(400, "Quotation must be ACCEPTED to convert to an order.")
@@ -62,7 +63,7 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
     )
 
 @router.get("/fulfillment/recommend/{order_id}", response_model=FulfillmentRecommendationResponse)
-def recommend_fulfillment(order_id: str, db: Session = Depends(get_db)):
+def recommend_fulfillment(order_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(404, "Order not found")
@@ -114,7 +115,7 @@ def recommend_fulfillment(order_id: str, db: Session = Depends(get_db)):
     )
 
 @router.post("/fulfillment/{order_id}")
-def process_fulfillment(order_id: str, payload: FulfillmentRequest, db: Session = Depends(get_db)):
+def process_fulfillment(order_id: str, payload: FulfillmentRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["finance", "admin"]))):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(404, "Order not found")

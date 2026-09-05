@@ -55,3 +55,21 @@ def get_current_user(
 
 # Alias — makes route signatures self-documenting when roles matter.
 get_current_active_user = get_current_user
+
+
+class RoleChecker:
+    """
+    Dependency for enforcing Role-Based Access Control.
+    Usage:
+        dependencies=[Depends(RoleChecker(["sales_manager", "admin"]))]
+    """
+    def __init__(self, allowed_roles: list[str]):
+        self.allowed_roles = allowed_roles
+
+    def __call__(self, user: User = Depends(get_current_active_user)) -> User:
+        if user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Operation not permitted. Role must be one of: {', '.join(self.allowed_roles)}",
+            )
+        return user

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
-from src.api.deps import get_db, get_current_user
+from src.api.deps import get_db, RoleChecker
 from src.models.user import User
 from src.models.admin import PricingRule, SubscriptionPlan, GlobalSetting
 from src.models.product import Product
@@ -17,11 +17,11 @@ router = APIRouter()
 
 # --- PRICING RULES ---
 @router.get("/pricing-rules", response_model=List[PricingRuleResponse])
-def get_pricing_rules(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_pricing_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     return db.query(PricingRule).all()
 
 @router.post("/pricing-rules", response_model=PricingRuleResponse, status_code=status.HTTP_201_CREATED)
-def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = PricingRule(**rule.model_dump())
@@ -31,7 +31,7 @@ def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), 
     return db_rule
 
 @router.patch("/pricing-rules/{rule_id}", response_model=PricingRuleResponse)
-def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
@@ -47,7 +47,7 @@ def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Dep
     return db_rule
 
 @router.delete("/pricing-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_pricing_rule(rule_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_pricing_rule(rule_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
@@ -58,11 +58,11 @@ def delete_pricing_rule(rule_id: str, db: Session = Depends(get_db), current_use
 
 # --- SUBSCRIPTION PLANS ---
 @router.get("/subscription-plans", response_model=List[SubscriptionPlanResponse])
-def get_subscription_plans(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_subscription_plans(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     return db.query(SubscriptionPlan).all()
 
 @router.post("/subscription-plans", response_model=SubscriptionPlanResponse, status_code=status.HTTP_201_CREATED)
-def create_subscription_plan(plan: SubscriptionPlanCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_subscription_plan(plan: SubscriptionPlanCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = SubscriptionPlan(**plan.model_dump())
@@ -72,7 +72,7 @@ def create_subscription_plan(plan: SubscriptionPlanCreate, db: Session = Depends
     return db_plan
 
 @router.patch("/subscription-plans/{plan_id}", response_model=SubscriptionPlanResponse)
-def update_subscription_plan(plan_id: str, plan: SubscriptionPlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_subscription_plan(plan_id: str, plan: SubscriptionPlanUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
@@ -88,7 +88,7 @@ def update_subscription_plan(plan_id: str, plan: SubscriptionPlanUpdate, db: Ses
     return db_plan
 
 @router.delete("/subscription-plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_subscription_plan(plan_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_subscription_plan(plan_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_plan = db.query(SubscriptionPlan).filter(SubscriptionPlan.id == plan_id).first()
@@ -99,11 +99,11 @@ def delete_subscription_plan(plan_id: str, db: Session = Depends(get_db), curren
 
 # --- SETTINGS ---
 @router.get("/settings", response_model=List[GlobalSettingResponse])
-def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     return db.query(GlobalSetting).all()
 
 @router.post("/settings", response_model=GlobalSettingResponse, status_code=status.HTTP_201_CREATED)
-def create_setting(setting: GlobalSettingCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_setting(setting: GlobalSettingCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_setting = GlobalSetting(**setting.model_dump())
@@ -113,7 +113,7 @@ def create_setting(setting: GlobalSettingCreate, db: Session = Depends(get_db), 
     return db_setting
 
 @router.patch("/settings/{key}", response_model=GlobalSettingResponse)
-def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_setting = db.query(GlobalSetting).filter(GlobalSetting.key == key).first()
@@ -130,11 +130,11 @@ def update_setting(key: str, setting: GlobalSettingUpdate, db: Session = Depends
 
 # --- PRODUCTS (Admin CRUD) ---
 @router.get("/products", response_model=List[ProductResponse])
-def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def get_all_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     return db.query(Product).all()
 
 @router.post("/products", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-def create_product(product: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_product(product: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_prod = Product(**product.model_dump())
@@ -144,7 +144,7 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db), curren
     return db_prod
 
 @router.patch("/products/{product_id}", response_model=ProductResponse)
-def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_product(product_id: str, product: ProductUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
     db_prod = db.query(Product).filter(Product.id == product_id).first()

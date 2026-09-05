@@ -16,7 +16,7 @@ export const authApi = {
   },
 
   signup: async (credentials: SignupCredentials): Promise<User> => {
-    const response = await apiClient.post<TokenResponse>('/auth/signup', credentials);
+    const response = await apiClient.post<TokenResponse>('/auth/register', credentials);
     localStorage.setItem('dealflow_token', response.data.access_token);
     return response.data.user;
   },

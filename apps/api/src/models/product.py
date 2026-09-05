@@ -13,8 +13,8 @@ class Product(Base):
     name = Column(String, nullable=False)
     sku = Column(String, unique=True, index=True, nullable=False)
     category = Column(String, default="hardware", nullable=True) # e.g. "hardware", "service", "software"
-    sales_price = Column(Float, nullable=False)
-    cost = Column(Float, nullable=False)
+    sales_price = Column(Numeric(10, 2), nullable=False)
+    cost = Column(Numeric(10, 2), nullable=False)
     active = Column(Boolean, default=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

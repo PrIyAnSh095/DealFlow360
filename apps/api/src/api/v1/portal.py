@@ -97,6 +97,14 @@ def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     quote.status = "ACCEPTED"
     deal.status = "won"
     
+    # Create the Order
+    from src.models.operations import Order
+    new_order = Order(
+        quotation_id=quote.id,
+        status="pending_fulfillment"
+    )
+    db.add(new_order)
+    
     # Log the action automatically as a message
     msg = QuoteMessage(
         quotation_id=quote.id,
@@ -106,4 +114,4 @@ def confirm_quote(public_id: str, db: Session = Depends(get_db)):
     db.add(msg)
     
     db.commit()
-    return {"message": "Quote accepted successfully"}
+    return {"message": "Quote accepted and Order created successfully"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Receipt,
   Download,
@@ -11,7 +11,7 @@ import {
   CreditCard,
   TrendingDown,
 } from "lucide-react";
-import { mockInvoices } from "@/features/customer/mock-data";
+import { customerApi } from "@/features/customer/api";
 import { cn } from "@/lib/utils";
 
 function formatINR(value: number) {
@@ -57,24 +57,34 @@ const STATUS_META: Record<
 
 export default function InvoicesPage() {
   const [filter, setFilter] = useState("all");
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filtered = mockInvoices.filter((inv) => {
+  useEffect(() => {
+    customerApi.getInvoices().then(setInvoices).finally(() => setIsLoading(false));
+  }, []);
+
+  const filtered = invoices.filter((inv) => {
     if (filter === "all") return true;
     return inv.status === filter;
   });
 
-  const totalDue = mockInvoices
+  const totalDue = invoices
     .filter((i) => i.status === "sent" || i.status === "overdue")
     .reduce((acc, i) => acc + i.amount, 0);
 
-  const totalPaid = mockInvoices
+  const totalPaid = invoices
     .filter((i) => i.status === "paid")
     .reduce((acc, i) => acc + i.amount, 0);
 
-  const creditNotes = mockInvoices.filter(
+  const creditNotes = invoices.filter(
     (i) => i.isProratedOrCreditNote && i.amount < 0
   );
   const totalCredit = creditNotes.reduce((acc, i) => acc + i.amount, 0);
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-[60vh]">Loading invoices...</div>;
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,7 +113,7 @@ export default function InvoicesPage() {
             {formatINR(totalDue)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-1">
-            Across {mockInvoices.filter((i) => i.status === "sent" || i.status === "overdue").length} invoices
+            Across {invoices.filter((i) => i.status === "sent" || i.status === "overdue").length} invoices
           </p>
         </div>
 
@@ -120,7 +130,7 @@ export default function InvoicesPage() {
             {formatINR(totalPaid)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-1">
-            Across {mockInvoices.filter((i) => i.status === "paid").length} invoices
+            Across {invoices.filter((i) => i.status === "paid").length} invoices
           </p>
         </div>
 
@@ -176,85 +186,93 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-[13px]">
-              {filtered.map((inv) => {
-                const meta = STATUS_META[inv.status] ?? STATUS_META["draft"];
-                const isCredit = inv.amount < 0;
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-foreground-muted">
+                    No invoices found.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((inv) => {
+                  const meta = STATUS_META[inv.status] ?? STATUS_META["draft"];
+                  const isCredit = inv.amount < 0;
 
-                return (
-                  <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {isCredit ? (
-                          <TrendingDown className="w-4 h-4 text-warning shrink-0" />
-                        ) : (
-                          <Receipt className="w-4 h-4 text-foreground-muted shrink-0" />
+                  return (
+                    <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {isCredit ? (
+                            <TrendingDown className="w-4 h-4 text-warning shrink-0" />
+                          ) : (
+                            <Receipt className="w-4 h-4 text-foreground-muted shrink-0" />
+                          )}
+                          <span className="font-mono font-semibold text-foreground">
+                            {inv.invoiceNumber}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-foreground-muted max-w-[250px]">
+                        <p className="truncate">{inv.description}</p>
+                        {inv.isProratedOrCreditNote && (
+                          <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning border border-warning/20">
+                            Credit Note
+                          </span>
                         )}
-                        <span className="font-mono font-semibold text-foreground">
-                          {inv.invoiceNumber}
+                      </td>
+                      <td className="px-6 py-4 text-foreground-muted">
+                        {inv.issuedAt}
+                      </td>
+                      <td className="px-6 py-4 text-foreground-muted">
+                        {inv.dueDate}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span
+                          className={cn(
+                            "font-bold text-[14px]",
+                            isCredit
+                              ? "text-warning"
+                              : inv.status === "overdue"
+                              ? "text-danger"
+                              : "text-foreground"
+                          )}
+                        >
+                          {formatINR(inv.amount)}
                         </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-foreground-muted max-w-[250px]">
-                      <p className="truncate">{inv.description}</p>
-                      {inv.isProratedOrCreditNote && (
-                        <span className="mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning border border-warning/20">
-                          Credit Note
+                        {inv.paidAt && (
+                          <p className="text-[11px] text-success mt-0.5">
+                            Paid {inv.paidAt}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border",
+                            meta.color
+                          )}
+                        >
+                          {meta.icon}
+                          {meta.label}
                         </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-foreground-muted">
-                      {inv.issuedAt}
-                    </td>
-                    <td className="px-6 py-4 text-foreground-muted">
-                      {inv.dueDate}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span
-                        className={cn(
-                          "font-bold text-[14px]",
-                          isCredit
-                            ? "text-warning"
-                            : inv.status === "overdue"
-                            ? "text-danger"
-                            : "text-foreground"
-                        )}
-                      >
-                        {formatINR(inv.amount)}
-                      </span>
-                      {inv.paidAt && (
-                        <p className="text-[11px] text-success mt-0.5">
-                          Paid {inv.paidAt}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border",
-                          meta.color
-                        )}
-                      >
-                        {meta.icon}
-                        {meta.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        {(inv.status === "sent" || inv.status === "overdue") && (
-                          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[12px] font-medium hover:bg-primary/90 transition-colors">
-                            <CreditCard className="w-3.5 h-3.5" />
-                            Pay Now
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                          {(inv.status === "sent" || inv.status === "overdue") && (
+                            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-[12px] font-medium hover:bg-primary/90 transition-colors">
+                              <CreditCard className="w-3.5 h-3.5" />
+                              Pay Now
+                            </button>
+                          )}
+                          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface text-[12px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors">
+                            <Download className="w-3.5 h-3.5" />
+                            PDF
                           </button>
-                        )}
-                        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface text-[12px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors">
-                          <Download className="w-3.5 h-3.5" />
-                          PDF
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

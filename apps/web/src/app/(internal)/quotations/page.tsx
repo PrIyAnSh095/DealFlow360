@@ -7,10 +7,17 @@ import { FileText, Plus, Search, Filter } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+import { useAuth } from "@/features/auth/auth-context";
+
 export default function QuotationsPage() {
+  const { user } = useAuth();
   const [quotations, setQuotations] = useState<QuotationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const canCreate = user && ["sales_rep", "admin"].includes(user.role);
 
   useEffect(() => {
     quotationsApi.getQuotations()
@@ -18,6 +25,17 @@ export default function QuotationsPage() {
       .catch(() => setError(true))
       .finally(() => setIsLoading(false));
   }, []);
+
+  const filteredQuotations = quotations.filter((quote) => {
+    const matchesSearch =
+      !searchQuery ||
+      quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quote.deal_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quote.status.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -37,19 +55,33 @@ export default function QuotationsPage() {
             <input
               type="text"
               placeholder="Search quotes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-1.5 bg-surface border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
             />
           </div>
           
-          <button className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-muted transition-colors">
-            <Filter className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Filters</span>
-          </button>
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium focus:outline-none focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="draft">Draft</option>
+            <option value="pending_approval">Pending Approval</option>
+            <option value="approved">Approved</option>
+            <option value="sent">Sent</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="expired">Expired</option>
+          </select>
           
-          <Link href="/quotations/new" className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1">
-            <Plus className="w-4 h-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">New Quote</span>
-          </Link>
+          {canCreate && (
+            <Link href="/quotations/new" className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1">
+              <Plus className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New Quote</span>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -77,14 +109,14 @@ export default function QuotationsPage() {
                 </tr>
               </thead>
               <tbody className="text-[13px] divide-y divide-border">
-                {quotations.length === 0 ? (
+                {filteredQuotations.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="px-5 py-8 text-center text-foreground-muted">
                       No quotations found.
                     </td>
                   </tr>
                 ) : (
-                  quotations.map((quote) => {
+                  filteredQuotations.map((quote) => {
                     const isHighRisk = quote.risk_score === 'HIGH';
                     const isMedRisk = quote.risk_score === 'MEDIUM';
                     

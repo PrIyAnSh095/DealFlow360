@@ -10,13 +10,10 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from src.core.database import SessionLocal
 from src.core.security import get_password_hash
 from src.models.admin import (
-    ApprovalChain,
-    ApprovalRule,
     Category,
     CustomerTier,
     DiscountPolicy,
     GlobalSetting,
-    PricingRule,
     SubscriptionPlan,
 )
 from src.models.approval import ApprovalAuditLog, ApprovalRequest
@@ -103,15 +100,9 @@ def seed_db() -> None:
         for name, discount in [("Standard", "5"), ("Premium", "10"), ("Enterprise", "15")]:
             get_or_create(db, CustomerTier, {"name": name}, {"name": name, "baseline_discount": Decimal(discount), "is_active": True})
 
-        for name, role, max_discount, approval_above in [
-            ("Sales Rep Standard", "sales_rep", "10", "10"),
-            ("Manager Strategic", "sales_manager", "20", "15"),
-            ("Finance Exception", "finance", "25", "20"),
-        ]:
-            get_or_create(db, PricingRule, {"name": name}, {"name": name, "target_role": role, "max_discount_percent": Decimal(max_discount), "requires_approval_above": Decimal(approval_above), "is_active": True})
-        get_or_create(db, DiscountPolicy, {"name": "Enterprise Hardware Policy"}, {"name": "Enterprise Hardware Policy", "target_tier": "enterprise", "target_category": "hardware", "max_discount_percent": Decimal("15"), "min_margin_percent": Decimal("20"), "is_active": True})
-        get_or_create(db, ApprovalRule, {"name": "High Discount Approval"}, {"name": "High Discount Approval", "risk_threshold": "high", "discount_threshold": Decimal("15"), "target_role": "sales_manager", "is_active": True})
-        get_or_create(db, ApprovalChain, {"name": "Standard Approval Chain"}, {"name": "Standard Approval Chain", "sequence": "sales_manager,finance", "is_active": True})
+        get_or_create(db, DiscountPolicy, {"name": "Sales Rep Standard"}, {"name": "Sales Rep Standard", "employee_role": "sales_rep", "max_discount_percent": Decimal("10"), "min_margin_percent": Decimal("20"), "is_active": True})
+        get_or_create(db, DiscountPolicy, {"name": "Sales Manager Standard"}, {"name": "Sales Manager Standard", "employee_role": "sales_manager", "max_discount_percent": Decimal("20"), "min_margin_percent": Decimal("15"), "is_active": True})
+        get_or_create(db, DiscountPolicy, {"name": "Finance Standard"}, {"name": "Finance Standard", "employee_role": "finance", "max_discount_percent": Decimal("30"), "min_margin_percent": Decimal("10"), "is_active": True})
         get_or_create(db, SubscriptionPlan, {"name": "Analytics Monthly"}, {"name": "Analytics Monthly", "description": "Monthly analytics subscription", "interval": "month", "price": Decimal("12000"), "is_active": True})
         for key, value, description in [
             ("company_name", "DealFlow360", "Company name shown on documents"),

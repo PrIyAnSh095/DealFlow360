@@ -41,27 +41,19 @@ export default function MyQuotationsPage() {
     return matchSearch && matchStatus;
   });
 
-  if (isLoading) {
-    return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading quotations...</div>;
-  }
-
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            My Quotations
+          <h1 className="text-xl font-bold tracking-tight text-foreground">
+            Quotations
           </h1>
           <p className="text-[13px] text-foreground-muted mt-1">
-            View all quotations sent to you. Negotiate or confirm directly.
+            Review and approve your custom quotes.
           </p>
         </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-sm">
+        
+        <div className="relative w-full sm:w-64">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-foreground-muted" />
           <input
             type="text"
@@ -78,7 +70,6 @@ export default function MyQuotationsPage() {
                 key={status}
                 onClick={() => setStatusFilter(status)}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-[12px] font-medium border transition-colors capitalize",
                   statusFilter === status
                     ? "bg-primary text-primary-foreground border-primary"
                     : "bg-surface border-border text-foreground-muted hover:text-foreground hover:bg-muted"

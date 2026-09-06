@@ -44,4 +44,8 @@ export const customerApi = {
     const response = await apiClient.get('/billing/subscriptions');
     return response.data;
   },
+  
+  cancelSubscription: async (subId: string): Promise<void> => {
+    await apiClient.post(`/customers/me/subscriptions/${subId}/cancel`);
+  }
 };

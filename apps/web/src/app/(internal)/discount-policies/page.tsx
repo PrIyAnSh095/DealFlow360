@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useDiscountPolicies, useCreateDiscountPolicy, useUpdateDiscountPolicy, useDeleteDiscountPolicy } from "@/features/admin/hooks";
+import { useDiscountPolicies, useCreateDiscountPolicy, useUpdateDiscountPolicy, useDeleteDiscountPolicy, useCategories } from "@/features/admin/hooks";
 import { DiscountPolicy } from "@/features/admin/types";
 import { Settings2, Plus, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,16 +9,19 @@ import { cn } from "@/lib/utils";
 
 export default function DiscountPoliciesPage() {
   const { data: policies, isLoading } = useDiscountPolicies();
+  const { data: categories } = useCategories();
   const createPolicy = useCreateDiscountPolicy();
   const updatePolicy = useUpdateDiscountPolicy();
   const deletePolicy = useDeleteDiscountPolicy();
+
+  const ROLES = ['sales', 'manager', 'finance', 'admin', 'customer', 'sales_rep', 'sales_manager'];
 
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<DiscountPolicy>>({});
   
   const [isCreating, setIsCreating] = useState(false);
   const [createForm, setCreateForm] = useState<Partial<DiscountPolicy>>({
-    name: "", target_tier: "", target_category: "", max_discount_percent: 0, min_margin_percent: 0, is_active: true
+    name: "", target_tier: "", product_category: "", employee_role: "", max_discount_percent: 0, min_margin_percent: 0, is_active: true
   });
 
   if (isLoading) return <div className="p-8 text-foreground-muted">Loading discount policies...</div>;
@@ -28,11 +31,12 @@ export default function DiscountPoliciesPage() {
       await createPolicy.mutateAsync({
         ...createForm,
         target_tier: createForm.target_tier || null,
-        target_category: createForm.target_category || null,
+        product_category: createForm.product_category || null,
+        employee_role: createForm.employee_role || null,
       });
       toast.success("Policy created");
       setIsCreating(false);
-      setCreateForm({ name: "", target_tier: "", target_category: "", max_discount_percent: 0, min_margin_percent: 0, is_active: true });
+      setCreateForm({ name: "", target_tier: "", product_category: "", employee_role: "", max_discount_percent: 0, min_margin_percent: 0, is_active: true });
     } catch (e) { toast.error("Failed to create policy"); }
   };
 
@@ -43,7 +47,8 @@ export default function DiscountPoliciesPage() {
         data: {
           ...editForm,
           target_tier: editForm.target_tier || null,
-          target_category: editForm.target_category || null,
+          product_category: editForm.product_category || null,
+          employee_role: editForm.employee_role || null,
         }
       });
       toast.success("Policy updated");
@@ -70,8 +75,9 @@ export default function DiscountPoliciesPage() {
           <thead className="bg-muted text-foreground-muted border-b border-border">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Employee Role</th>
+              <th className="px-4 py-3 font-medium">Product Category</th>
               <th className="px-4 py-3 font-medium">Target Tier</th>
-              <th className="px-4 py-3 font-medium">Target Category</th>
               <th className="px-4 py-3 font-medium text-right">Max Discount</th>
               <th className="px-4 py-3 font-medium text-right">Min Margin</th>
               <th className="px-4 py-3 font-medium text-center">Status</th>
@@ -82,8 +88,19 @@ export default function DiscountPoliciesPage() {
             {isCreating && (
               <tr className="bg-primary/5">
                 <td className="px-4 py-3"><input autoFocus value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} className="w-full p-1 border rounded" placeholder="Policy Name" /></td>
+                <td className="px-4 py-3">
+                  <select value={createForm.employee_role || ''} onChange={e => setCreateForm({...createForm, employee_role: e.target.value})} className="w-full p-1 border rounded bg-transparent">
+                    <option value="">None (All)</option>
+                    {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <select value={createForm.product_category || ''} onChange={e => setCreateForm({...createForm, product_category: e.target.value})} className="w-full p-1 border rounded bg-transparent">
+                    <option value="">None (All)</option>
+                    {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </td>
                 <td className="px-4 py-3"><input value={createForm.target_tier || ''} onChange={e => setCreateForm({...createForm, target_tier: e.target.value})} className="w-full p-1 border rounded" placeholder="All" /></td>
-                <td className="px-4 py-3"><input value={createForm.target_category || ''} onChange={e => setCreateForm({...createForm, target_category: e.target.value})} className="w-full p-1 border rounded" placeholder="All" /></td>
                 <td className="px-4 py-3"><input type="number" value={createForm.max_discount_percent} onChange={e => setCreateForm({...createForm, max_discount_percent: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right ml-auto" /></td>
                 <td className="px-4 py-3"><input type="number" value={createForm.min_margin_percent || ''} onChange={e => setCreateForm({...createForm, min_margin_percent: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right ml-auto" /></td>
                 <td className="px-4 py-3 text-center"><span className="text-success font-bold text-xs uppercase">Active</span></td>
@@ -100,10 +117,23 @@ export default function DiscountPoliciesPage() {
                   {isEditing === policy.id ? <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-1 border rounded" /> : <span className="font-medium text-foreground">{policy.name}</span>}
                 </td>
                 <td className="px-4 py-3">
-                  {isEditing === policy.id ? <input value={editForm.target_tier || ''} onChange={e => setEditForm({...editForm, target_tier: e.target.value})} className="w-full p-1 border rounded" /> : <span className="text-foreground-muted">{policy.target_tier || 'All'}</span>}
+                  {isEditing === policy.id ? (
+                    <select value={editForm.employee_role || ''} onChange={e => setEditForm({...editForm, employee_role: e.target.value})} className="w-full p-1 border rounded bg-transparent">
+                      <option value="">None (All)</option>
+                      {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  ) : <span className="text-foreground-muted">{policy.employee_role || 'All'}</span>}
                 </td>
                 <td className="px-4 py-3">
-                  {isEditing === policy.id ? <input value={editForm.target_category || ''} onChange={e => setEditForm({...editForm, target_category: e.target.value})} className="w-full p-1 border rounded" /> : <span className="text-foreground-muted">{policy.target_category || 'All'}</span>}
+                  {isEditing === policy.id ? (
+                    <select value={editForm.product_category || ''} onChange={e => setEditForm({...editForm, product_category: e.target.value})} className="w-full p-1 border rounded bg-transparent">
+                      <option value="">None (All)</option>
+                      {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+                  ) : <span className="text-foreground-muted">{policy.product_category || 'All'}</span>}
+                </td>
+                <td className="px-4 py-3">
+                  {isEditing === policy.id ? <input value={editForm.target_tier || ''} onChange={e => setEditForm({...editForm, target_tier: e.target.value})} className="w-full p-1 border rounded" /> : <span className="text-foreground-muted">{policy.target_tier || 'All'}</span>}
                 </td>
                 <td className="px-4 py-3 text-right font-mono">
                   {isEditing === policy.id ? <input type="number" value={editForm.max_discount_percent} onChange={e => setEditForm({...editForm, max_discount_percent: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right ml-auto" /> : `${policy.max_discount_percent}%`}

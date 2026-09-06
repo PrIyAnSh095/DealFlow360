@@ -35,13 +35,33 @@ def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(Ro
         
     return response_list
 
-def perform_approval_action(req_id: str, action: str, next_status: str, payload: ApprovalActionRequest, db: Session, user: User):
+def perform_approval_action(req_id: str, action: str, payload: ApprovalActionRequest, db: Session, user: User):
     req = db.query(ApprovalRequest).filter(ApprovalRequest.id == req_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Approval request not found")
         
-    if req.status != "PENDING":
-        raise HTTPException(status_code=400, detail=f"Cannot {action} a request in {req.status} state")
+    if req.status in ["APPROVED", "REJECTED", "RETURNED"]:
+        raise HTTPException(status_code=400, detail=f"Cannot {action} a request already in {req.status} state")
+
+    next_status = None
+    
+    if action == "approve":
+        if req.status == "PENDING_MANAGER":
+            if user.role not in ["sales_manager", "admin"]:
+                raise HTTPException(status_code=403, detail="Only a Sales Manager can approve at this stage.")
+            next_status = "PENDING_FINANCE"
+        elif req.status == "PENDING_FINANCE":
+            if user.role not in ["finance", "admin"]:
+                raise HTTPException(status_code=403, detail="Only Finance can approve at this stage.")
+            next_status = "APPROVED"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unexpected status: {req.status}")
+    elif action == "reject":
+        next_status = "REJECTED"
+    elif action == "return":
+        next_status = "RETURNED"
+    else:
+        raise HTTPException(status_code=400, detail=f"Invalid action {action}")
         
     # Update request
     req.status = next_status
@@ -64,12 +84,12 @@ def perform_approval_action(req_id: str, action: str, next_status: str, payload:
 
 @router.post("/{id}/approve")
 def approve_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
-    return perform_approval_action(id, "approve", "APPROVED", payload, db, current_user)
+    return perform_approval_action(id, "approve", payload, db, current_user)
 
 @router.post("/{id}/reject")
 def reject_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
-    return perform_approval_action(id, "reject", "REJECTED", payload, db, current_user)
+    return perform_approval_action(id, "reject", payload, db, current_user)
 
 @router.post("/{id}/return")
 def return_request(id: str, payload: ApprovalActionRequest, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_ACTION_ROLES))):
-    return perform_approval_action(id, "return", "RETURNED", payload, db, current_user)
+    return perform_approval_action(id, "return", payload, db, current_user)

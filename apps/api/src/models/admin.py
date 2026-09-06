@@ -6,17 +6,6 @@ from src.core.database import Base
 def generate_uuid():
     return str(uuid.uuid4())
 
-class PricingRule(Base):
-    __tablename__ = "pricing_rules"
-    
-    id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    name = Column(String, nullable=False)
-    target_role = Column(String, nullable=False)
-    max_discount_percent = Column(Numeric(5, 2), nullable=False)
-    requires_approval_above = Column(Numeric(5, 2), nullable=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"
@@ -64,31 +53,12 @@ class DiscountPolicy(Base):
     id = Column(String, primary_key=True, default=generate_uuid, index=True)
     name = Column(String, nullable=False)
     target_tier = Column(String, nullable=True) # If null, applies to all
-    target_category = Column(String, nullable=True) # If null, applies to all
+    product_category = Column(String, nullable=True) # If null, applies to all categories
+    employee_role = Column(String, nullable=True) # e.g. sales_rep, sales_manager
     max_discount_percent = Column(Numeric(5, 2), nullable=False)
     min_margin_percent = Column(Numeric(5, 2), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class ApprovalRule(Base):
-    __tablename__ = "approval_rules"
-    
-    id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    name = Column(String, nullable=False)
-    risk_threshold = Column(String, nullable=True) # low, medium, high
-    discount_threshold = Column(Numeric(5, 2), nullable=True) # Trigger if discount > X
-    target_role = Column(String, nullable=False) # e.g. sales_manager, finance
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class ApprovalChain(Base):
-    __tablename__ = "approval_chains"
-    
-    id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    name = Column(String, nullable=False)
-    sequence = Column(String, nullable=False) # e.g. "sales_manager,finance,admin"
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

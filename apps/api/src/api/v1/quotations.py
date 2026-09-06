@@ -13,9 +13,7 @@ from decimal import Decimal
 
 router = APIRouter()
 
-from src.models.admin import DiscountPolicy, ApprovalRule
-
-# Removed hardcoded CATEGORY_DISCOUNT_LIMITS
+from src.models.admin import DiscountPolicy
 
 @router.get("/products", response_model=List[ProductResponse])
 def get_products(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(QUOTE_VIEW_ROLES))):
@@ -38,7 +36,6 @@ def recalculate_quotation(
     lines_response = []
     
     active_policies = db.query(DiscountPolicy).filter(DiscountPolicy.is_active == True).all()
-    active_rules = db.query(ApprovalRule).filter(ApprovalRule.is_active == True).all()
     
     for line_in in request.lines:
         product = db.query(Product).filter(Product.id == line_in.product_id).first()
@@ -52,16 +49,18 @@ def recalculate_quotation(
         line_cost = product.cost * Decimal(line_in.quantity)
         
         # Policy evaluation for this line
-        policy = next((p for p in active_policies if p.target_category == product.category), None)
+        policy = next((p for p in active_policies if p.product_category == product.category and p.employee_role == current_user.role), None)
         if not policy:
-            policy = next((p for p in active_policies if not p.target_category and not p.target_tier), None)
+            policy = next((p for p in active_policies if not p.product_category and p.employee_role == current_user.role), None)
             
-        limit = Decimal(policy.max_discount_percent) if policy else Decimal('10.0')
+        limit = Decimal(policy.max_discount_percent) if policy else Decimal('0.0')
         min_margin = Decimal(policy.min_margin_percent) if policy and policy.min_margin_percent is not None else Decimal('20.0')
         
         if line_in.discount_percent > limit:
-            requires_approval = True
-            explanations.append(f"{product.name} ({product.category}) discount of {line_in.discount_percent}% exceeds policy limit of {limit}%")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Rule Violation: Cannot apply {line_in.discount_percent}% discount on {product.name}. Your role ({current_user.role}) is limited to {limit}%."
+            )
             
         line_margin = Decimal('0.0')
         if line_net > Decimal('0.0'):
@@ -90,16 +89,10 @@ def recalculate_quotation(
         
     risk_score = "LOW"
     
-    # Check overall margin against rules
-    for rule in active_rules:
-        if rule.discount_threshold and subtotal > 0:
-            overall_discount_pct = (total_discount / subtotal) * Decimal('100.0')
-            if overall_discount_pct > Decimal(rule.discount_threshold):
-                requires_approval = True
-                if rule.risk_threshold:
-                    risk_score = rule.risk_threshold.upper()
-                explanations.append(f"Overall discount {overall_discount_pct.quantize(Decimal('0.01'))}% exceeds rule threshold of {rule.discount_threshold}%")
-                
+    if total_discount > Decimal('0.0'):
+        requires_approval = True
+        explanations.append("Discounts applied. Quote requires standard chain approval (Manager -> Finance).")
+        
     if requires_approval and risk_score == "LOW":
         risk_score = "HIGH"
     elif margin_percentage < Decimal('20.0') and risk_score == "LOW":
@@ -208,11 +201,11 @@ def submit_quotation(
     if quotation.requires_approval:
         deal.status = "approval"
         
-        # Create approval request
+        # Create approval request for the strict chain
         approval_req = ApprovalRequest(
             quotation_id=quotation.id,
             requester_id=current_user.id,
-            status="PENDING"
+            status="PENDING_MANAGER"
         )
         db.add(approval_req)
         db.flush() # flush to get the ID

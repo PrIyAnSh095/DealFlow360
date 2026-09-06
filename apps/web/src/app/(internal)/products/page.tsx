@@ -1,16 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { useAdminProducts, useCreateProduct, useUpdateProduct } from "@/features/admin/hooks";
+import { useAdminProducts, useCreateProduct, useUpdateProduct, useCategories, useSettings } from "@/features/admin/hooks";
 import { Product } from "@/features/quotations/types";
-import { Box, Plus, Edit2 } from "lucide-react";
+import { Box, Plus, Edit2, Tag } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export default function ProductsPage() {
   const { data: products, isLoading } = useAdminProducts();
+  const { data: categories } = useCategories();
+  const { data: settings } = useSettings();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+
+  const defaultCurrency = settings?.find(s => s.key === "DEFAULT_CURRENCY")?.value || "USD";
+  const currencySymbol = defaultCurrency === "INR" ? "₹" : defaultCurrency === "EUR" ? "€" : defaultCurrency === "GBP" ? "£" : "$";
 
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
@@ -68,12 +74,17 @@ export default function ProductsPage() {
           </h1>
           <p className="text-sm text-foreground-muted mt-1">Manage master product catalog and cost bases.</p>
         </div>
-        <button 
-          onClick={() => setIsCreating(true)}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium text-sm flex items-center gap-2 hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/categories" className="bg-muted text-foreground-muted px-4 py-2 rounded-md font-medium text-sm flex items-center gap-2 hover:text-foreground transition-colors border border-border">
+            <Tag className="w-4 h-4" /> Manage Categories
+          </Link>
+          <button 
+            onClick={() => setIsCreating(true)}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-medium text-sm flex items-center gap-2 hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       <div className="bg-surface border border-border rounded-lg shadow-sm flex-1 overflow-auto">
@@ -99,11 +110,9 @@ export default function ProductsPage() {
                   <input value={createForm.sku} onChange={e => setCreateForm({...createForm, sku: e.target.value})} className="w-full p-1 border rounded" placeholder="SKU" />
                 </td>
                 <td className="px-4 py-3">
-                  <select value={createForm.category} onChange={e => setCreateForm({...createForm, category: e.target.value})} className="w-full p-1 border rounded">
-                    <option value="hardware">Hardware</option>
-                    <option value="software">Software</option>
-                    <option value="service">Service</option>
-                    <option value="subscription">Subscription</option>
+                  <select value={createForm.category} onChange={e => setCreateForm({...createForm, category: e.target.value})} className="w-full p-1 border rounded bg-transparent">
+                    <option value="">Select Category</option>
+                    {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                   </select>
                 </td>
                 <td className="px-4 py-3">
@@ -116,8 +125,10 @@ export default function ProductsPage() {
                   <span className="text-success font-bold text-xs uppercase">Active</span>
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => setIsCreating(false)} className="text-foreground-muted hover:text-foreground">Cancel</button>
-                  <button onClick={handleCreate} className="text-primary font-bold">Save</button>
+                  <button onClick={() => setIsCreating(false)} disabled={createProduct.isPending} className="text-foreground-muted hover:text-foreground disabled:opacity-50">Cancel</button>
+                  <button onClick={handleCreate} disabled={createProduct.isPending} className="text-primary font-bold disabled:opacity-50">
+                    {createProduct.isPending ? "Saving..." : "Save"}
+                  </button>
                 </td>
               </tr>
             )}
@@ -138,23 +149,21 @@ export default function ProductsPage() {
                 </td>
                 <td className="px-4 py-3 uppercase text-xs font-bold text-foreground-muted">
                   {isEditing === product.id ? (
-                    <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} className="w-full p-1 border rounded text-sm normal-case font-normal">
-                      <option value="hardware">Hardware</option>
-                      <option value="software">Software</option>
-                      <option value="service">Service</option>
-                      <option value="subscription">Subscription</option>
+                    <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} className="w-full p-1 border rounded text-sm normal-case font-normal bg-transparent">
+                      <option value="">Select Category</option>
+                      {categories?.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                   ) : product.category}
                 </td>
                 <td className="px-4 py-3 text-right font-mono">
                   {isEditing === product.id ? (
                     <input type="number" value={editForm.cost} onChange={e => setEditForm({...editForm, cost: parseFloat(e.target.value)})} className="w-24 p-1 border rounded text-right ml-auto" />
-                  ) : `$${product.cost.toLocaleString()}`}
+                  ) : `${currencySymbol}${product.cost.toLocaleString()}`}
                 </td>
                 <td className="px-4 py-3 text-right font-mono font-medium">
                   {isEditing === product.id ? (
                     <input type="number" value={editForm.sales_price} onChange={e => setEditForm({...editForm, sales_price: parseFloat(e.target.value)})} className="w-24 p-1 border rounded text-right ml-auto" />
-                  ) : `$${product.sales_price.toLocaleString()}`}
+                  ) : `${currencySymbol}${product.sales_price.toLocaleString()}`}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button 

@@ -1,16 +1,41 @@
 "use client";
 
-import { Bell, Search, User, LogOut, ChevronRight } from "lucide-react";
+import { Search, User, LogOut, ChevronRight } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAuth } from "@/features/auth/auth-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { searchApi, SearchResult } from "@/features/search/api";
 
 export function Topbar() {
   const { user, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.length >= 2) {
+        setIsSearching(true);
+        try {
+          const results = await searchApi.globalSearch(searchQuery);
+          setSearchResults(results);
+        } catch (e) {
+          console.error("Search failed", e);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   
   // Very naive breadcrumb logic for demo purposes
   const paths = pathname.split('/').filter(Boolean);
@@ -32,22 +57,61 @@ export function Topbar() {
           ))}
         </div>
 
-        <div className="relative w-full max-w-sm ml-auto md:ml-4">
+        <div className="relative w-full max-w-sm ml-auto md:ml-4 group">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-foreground-muted" />
           <input
             type="search"
             placeholder="Search deals, quotes, customers..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setShowSearchResults(true);
+            }}
+            onFocus={() => {
+              if (searchQuery.length >= 2) setShowSearchResults(true);
+            }}
             className="w-full pl-9 pr-4 py-1.5 bg-background border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-foreground-muted"
           />
+          
+          {showSearchResults && searchQuery.length >= 2 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border rounded-md shadow-lg max-h-96 overflow-y-auto z-50">
+              {isSearching ? (
+                <div className="p-4 text-center text-[13px] text-foreground-muted">Searching...</div>
+              ) : searchResults.length === 0 ? (
+                <div className="p-4 text-center text-[13px] text-foreground-muted">No results found for "{searchQuery}"</div>
+              ) : (
+                <div className="py-1">
+                  {searchResults.map((result) => (
+                    <Link
+                      key={`${result.type}-${result.id}`}
+                      href={result.url}
+                      onClick={() => setShowSearchResults(false)}
+                      className="flex flex-col px-4 py-2 hover:bg-muted transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] font-medium text-foreground">{result.title}</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 rounded">{result.type}</span>
+                      </div>
+                      <span className="text-[12px] text-foreground-muted">{result.subtitle}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       
+      {/* Click outside overlay for search results */}
+      {showSearchResults && (
+        <div 
+          className="fixed inset-0 z-40 bg-transparent" 
+          onClick={() => setShowSearchResults(false)}
+        />
+      )}
+      
       <div className="flex items-center gap-2 ml-4">
         <ThemeToggle />
-        <button className="relative p-2 rounded-md hover:bg-muted text-foreground-muted hover:text-foreground transition-colors">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full ring-2 ring-surface" />
-        </button>
         
         <div className="relative ml-2">
           <button 

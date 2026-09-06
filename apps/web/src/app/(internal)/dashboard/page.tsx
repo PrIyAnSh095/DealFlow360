@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/features/auth/auth-context";
 import { Plus, Filter, Search, ArrowUpRight, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { dashboardApi } from "@/features/dashboard/api";
@@ -19,6 +20,8 @@ export default function DashboardPage() {
   const [attentionDeals, setAttentionDeals] = useState<Deal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  const canCreate = user && ["sales_rep", "admin"].includes(user.role);
 
   useEffect(() => {
     let isActive = true;
@@ -79,17 +82,22 @@ export default function DashboardPage() {
               className="w-full pl-9 pr-4 py-1.5 bg-surface border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
             />
           </div>
-          <button className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-muted transition-colors">
+          <button 
+            onClick={() => toast.info("Filter functionality coming soon!")}
+            className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-muted transition-colors"
+          >
             <Filter className="w-4 h-4 mr-2" />
             Filters
           </button>
-          <button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            New Deal
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              New Deal
+            </button>
+          )}
         </div>
       </div>
       

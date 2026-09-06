@@ -24,7 +24,12 @@ from src.schemas.user import (
     TokenResponse,
     UserResponse,
     UserUpdate,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -103,6 +108,112 @@ def login(body: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     # 4. Issue JWT.
     token = create_access_token(user_id=str(user.id))
     return TokenResponse(access_token=token, user=UserResponse.model_validate(user))
+
+
+# ── POST /auth/forgot-password ──────────────────────────────────────────────────
+
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Request a password reset link",
+)
+def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)) -> MessageResponse:
+    user: User | None = db.query(User).filter(User.email == body.email).first()
+    
+    if user:
+        # Generate a short-lived token (15 mins) for password reset
+        from datetime import timedelta
+        reset_token = create_access_token(user_id=str(user.id), expires_delta=timedelta(minutes=15))
+        reset_link = f"http://localhost:3000/reset-password?token={reset_token}"
+        
+        from src.core.config import get_settings
+        settings = get_settings()
+        
+        # If SMTP settings are provided, send a real email
+        if settings.SMTP_SERVER and settings.SMTP_USERNAME and settings.SMTP_PASSWORD:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = settings.MAIL_FROM
+                msg['To'] = user.email
+                msg['Subject'] = "Password Reset - DealFlow360"
+                
+                body = f"""Hello {user.name},
+
+You requested a password reset for your DealFlow360 account.
+Please click the link below to reset your password. This link is valid for 15 minutes:
+
+{reset_link}
+
+If you did not request this, please ignore this email.
+
+Thanks,
+The DealFlow360 Team
+"""
+                msg.attach(MIMEText(body, 'plain'))
+                
+                server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+                server.starttls()
+                server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+                server.send_message(msg)
+                server.quit()
+                
+                logger.info(f"Real password reset email sent successfully to {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send real email to {user.email}: {e}")
+                # Fallback to printing if SMTP fails
+                print(f"\n\n[SMTP ERROR - FALLBACK MOCK EMAIL]\nLINK: {reset_link}\n\n")
+        else:
+            # Fallback mock logging when SMTP is not configured
+            logger.warning(f"\n\n=========================================\n"
+                           f"MOCK EMAIL SENT TO: {user.email}\n"
+                           f"SUBJECT: Password Reset\n"
+                           f"LINK: {reset_link}\n"
+                           f"=========================================\n\n")
+            print(f"\n\n=========================================\n"
+                  f"MOCK EMAIL SENT TO: {user.email}\n"
+                  f"SUBJECT: Password Reset\n"
+                  f"LINK: {reset_link}\n"
+                  f"=========================================\n\n")
+              
+    # Always return a success message to prevent user enumeration
+    return MessageResponse(message="If an account exists for that email, a password reset link has been sent.")
+
+
+# ── POST /auth/reset-password ───────────────────────────────────────────────────
+
+@router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reset password using a token",
+)
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)) -> MessageResponse:
+    from src.core.security import decode_access_token
+    user_id = decode_access_token(body.token)
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token.",
+        )
+        
+    user: User | None = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+        
+    user.password_hash = get_password_hash(body.new_password)
+    db.commit()
+    
+    return MessageResponse(message="Password has been successfully reset.")
+
 
 
 # ── POST /auth/logout ──────────────────────────────────────────────────────────

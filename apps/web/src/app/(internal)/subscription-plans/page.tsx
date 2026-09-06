@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSubscriptionPlans, useCreateSubscriptionPlan, useUpdateSubscriptionPlan, useDeleteSubscriptionPlan } from "@/features/admin/hooks";
+import { useSubscriptionPlans, useCreateSubscriptionPlan, useUpdateSubscriptionPlan, useDeleteSubscriptionPlan, useSettings } from "@/features/admin/hooks";
 import { SubscriptionPlan } from "@/features/admin/types";
 import { CreditCard, Plus, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,9 +9,13 @@ import { cn } from "@/lib/utils";
 
 export default function SubscriptionPlansPage() {
   const { data: plans, isLoading } = useSubscriptionPlans();
+  const { data: settings } = useSettings();
   const createPlan = useCreateSubscriptionPlan();
   const updatePlan = useUpdateSubscriptionPlan();
   const deletePlan = useDeleteSubscriptionPlan();
+
+  const defaultCurrency = settings?.find(s => s.key === "DEFAULT_CURRENCY")?.value || "USD";
+  const currencySymbol = defaultCurrency === "INR" ? "₹" : defaultCurrency === "EUR" ? "€" : defaultCurrency === "GBP" ? "£" : "$";
 
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<SubscriptionPlan>>({});
@@ -97,8 +101,8 @@ export default function SubscriptionPlansPage() {
                     </select>
                   ) : plan.interval}
                 </td>
-                <td className="px-4 py-3 text-right font-mono font-medium">
-                  {isEditing === plan.id ? <input type="number" value={editForm.price} onChange={e => setEditForm({...editForm, price: parseFloat(e.target.value)})} className="w-24 p-1 border rounded text-right ml-auto" /> : `$${plan.price.toLocaleString()}`}
+                <td className="px-4 py-3 text-right font-mono">
+                  {isEditing === plan.id ? <input type="number" value={editForm.price} onChange={e => setEditForm({...editForm, price: parseFloat(e.target.value)})} className="w-24 p-1 border rounded text-right ml-auto" /> : `${currencySymbol}${plan.price.toLocaleString()}`}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button 

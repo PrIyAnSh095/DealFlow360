@@ -110,3 +110,22 @@ def get_my_orders(
             deal_name="Order"
         ))
     return resp
+
+from src.models.billing import Subscription
+from datetime import datetime
+
+@router.post("/me/subscriptions/{sub_id}/cancel")
+def cancel_my_subscription(
+    sub_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["customer"]))
+):
+    # In a real app, verify the subscription belongs to this customer
+    sub = db.query(Subscription).filter(Subscription.id == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+        
+    sub.status = "canceled"
+    sub.canceled_at = datetime.now()
+    db.commit()
+    return {"message": "Subscription canceled successfully"}

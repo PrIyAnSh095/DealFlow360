@@ -7,11 +7,29 @@ import { DealList } from "@/features/deals/components/deal-list";
 import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
 import { LayoutGrid, List, Plus, Search, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/features/auth/auth-context";
 
 export default function DealsPage() {
+  const { user } = useAuth();
   const [view, setView] = useState<'kanban' | 'list'>('kanban');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const { data: deals, isLoading, error } = useDeals();
+
+  const canCreate = user && ["sales_rep", "admin"].includes(user.role);
+
+  const filteredDeals = (deals || []).filter((deal) => {
+    const matchesSearch =
+      !searchQuery ||
+      deal.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      deal.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (deal.customer_id && deal.customer_id.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+    const matchesStatus = statusFilter === "all" || deal.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
 
   if (error) {
     return (
@@ -39,14 +57,25 @@ export default function DealsPage() {
             <input
               type="text"
               placeholder="Search deals..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-1.5 bg-surface border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
             />
           </div>
           
-          <button className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-muted transition-colors">
-            <Filter className="w-4 h-4 sm:mr-2" />
-            <span className="hidden sm:inline">Filters</span>
-          </button>
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium focus:outline-none focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="lead">Lead</option>
+            <option value="qualified">Qualified</option>
+            <option value="proposal">Proposal</option>
+            <option value="negotiation">Negotiation</option>
+            <option value="won">Won</option>
+            <option value="lost">Lost</option>
+          </select>
           
           <div className="flex bg-surface border border-border rounded-md p-0.5">
             <button
@@ -71,13 +100,15 @@ export default function DealsPage() {
             </button>
           </div>
           
-          <button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1"
-          >
-            <Plus className="w-4 h-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">New Deal</span>
-          </button>
+          {canCreate && (
+            <button 
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1"
+            >
+              <Plus className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New Deal</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -87,9 +118,9 @@ export default function DealsPage() {
             Loading deals...
           </div>
         ) : view === 'kanban' ? (
-          <KanbanBoard initialDeals={deals || []} />
+          <KanbanBoard initialDeals={filteredDeals} />
         ) : (
-          <DealList deals={deals || []} />
+          <DealList deals={filteredDeals} />
         )}
       </div>
 

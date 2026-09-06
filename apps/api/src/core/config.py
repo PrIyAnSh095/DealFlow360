@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     # ── CORS ───────────────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "http://localhost:3000"
 
+    # ── Email Settings ─────────────────────────────────────────────────────────
+    SMTP_SERVER: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: str | None = None
+    MAIL_FROM: str = "noreply@dealflow360.com"
+
     model_config = SettingsConfigDict(
         # Look for .env in repo root, local api dir, or cwd
         env_file=[str(_ENV_FILE_PATH), ".env"],

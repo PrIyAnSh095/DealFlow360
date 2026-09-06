@@ -1,24 +1,22 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from typing import List
 
 from src.api.deps import INTERNAL_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.admin import (
-    PricingRule, SubscriptionPlan, GlobalSetting, 
-    Category, CustomerTier, DiscountPolicy, ApprovalRule, ApprovalChain
+    SubscriptionPlan, GlobalSetting, 
+    Category, CustomerTier, DiscountPolicy
 )
 from src.models.product import Product
 from src.schemas.admin import (
-    PricingRuleCreate, PricingRuleUpdate, PricingRuleResponse,
     SubscriptionPlanCreate, SubscriptionPlanUpdate, SubscriptionPlanResponse,
     GlobalSettingCreate, GlobalSettingUpdate, GlobalSettingResponse,
     AdminUserCreate, AdminUserUpdate, AuditLogResponse,
     CategoryCreate, CategoryUpdate, CategoryResponse,
     CustomerTierCreate, CustomerTierUpdate, CustomerTierResponse,
-    DiscountPolicyCreate, DiscountPolicyUpdate, DiscountPolicyResponse,
-    ApprovalRuleCreate, ApprovalRuleUpdate, ApprovalRuleResponse,
-    ApprovalChainCreate, ApprovalChainUpdate, ApprovalChainResponse
+    DiscountPolicyCreate, DiscountPolicyUpdate, DiscountPolicyResponse
 )
 from src.schemas.user import UserResponse
 from src.models.audit import AuditLog
@@ -27,49 +25,6 @@ from src.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 
 router = APIRouter()
 
-# --- PRICING RULES ---
-@router.get("/pricing-rules", response_model=List[PricingRuleResponse])
-def get_pricing_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    return db.query(PricingRule).all()
-
-@router.post("/pricing-rules", response_model=PricingRuleResponse, status_code=status.HTTP_201_CREATED)
-def create_pricing_rule(rule: PricingRuleCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_rule = PricingRule(**rule.model_dump())
-    db.add(db_rule)
-    db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_PRICING_RULE", entity_type="PRICING_RULE", details=rule.model_dump()))
-    db.commit()
-    db.refresh(db_rule)
-    return db_rule
-
-@router.patch("/pricing-rules/{rule_id}", response_model=PricingRuleResponse)
-def update_pricing_rule(rule_id: str, rule: PricingRuleUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
-    if not db_rule:
-        raise HTTPException(status_code=404, detail="Pricing rule not found")
-    
-    update_data = rule.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_rule, field, value)
-        
-    db.add(AuditLog(actor_id=str(current_user.id), action="UPDATE_PRICING_RULE", entity_type="PRICING_RULE", entity_id=rule_id, details=update_data))
-    db.commit()
-    db.refresh(db_rule)
-    return db_rule
-
-@router.delete("/pricing-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_pricing_rule(rule_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
-    db_rule = db.query(PricingRule).filter(PricingRule.id == rule_id).first()
-    if not db_rule:
-        raise HTTPException(status_code=404, detail="Pricing rule not found")
-    db.delete(db_rule)
-    db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_PRICING_RULE", entity_type="PRICING_RULE", entity_id=rule_id))
-    db.commit()
 
 # --- SUBSCRIPTION PLANS ---
 @router.get("/subscription-plans", response_model=List[SubscriptionPlanResponse])
@@ -157,9 +112,22 @@ def get_all_products(db: Session = Depends(get_db), current_user: User = Depends
 def create_product(product: ProductCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    db_prod = Product(**product.model_dump())
+        
+    product_dict = product.model_dump()
+    if 'is_active' in product_dict:
+        product_dict['active'] = product_dict.pop('is_active')
+        
+    # Auto-create category if it doesn't exist
+    if product_dict.get('category'):
+        cat_name = product_dict['category']
+        existing_cat = db.query(Category).filter(Category.name == cat_name).first()
+        if not existing_cat:
+            new_cat = Category(name=cat_name, description=f"Auto-created from product {product_dict['name']}")
+            db.add(new_cat)
+            
+    db_prod = Product(**product_dict)
     db.add(db_prod)
-    db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_PRODUCT", entity_type="PRODUCT", details=product.model_dump()))
+    db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_PRODUCT", entity_type="PRODUCT", details=jsonable_encoder(product)))
     db.commit()
     db.refresh(db_prod)
     return db_prod
@@ -173,10 +141,21 @@ def update_product(product_id: str, product: ProductUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Product not found")
         
     update_data = product.model_dump(exclude_unset=True)
+    if 'is_active' in update_data:
+        update_data['active'] = update_data.pop('is_active')
+        
+    # Auto-create category if it doesn't exist
+    if update_data.get('category'):
+        cat_name = update_data['category']
+        existing_cat = db.query(Category).filter(Category.name == cat_name).first()
+        if not existing_cat:
+            new_cat = Category(name=cat_name, description=f"Auto-created from product update {db_prod.name}")
+            db.add(new_cat)
+            
     for field, value in update_data.items():
         setattr(db_prod, field, value)
         
-    db.add(AuditLog(actor_id=str(current_user.id), action="UPDATE_PRODUCT", entity_type="PRODUCT", entity_id=product_id, details=update_data))
+    db.add(AuditLog(actor_id=str(current_user.id), action="UPDATE_PRODUCT", entity_type="PRODUCT", entity_id=product_id, details=jsonable_encoder(update_data)))
     db.commit()
     db.refresh(db_prod)
     return db_prod
@@ -196,9 +175,7 @@ def create_admin_user(user_in: AdminUserCreate, db: Session = Depends(get_db), c
         email=user_in.email.lower(),
         password_hash=get_password_hash(user_in.password),
         role=user_in.role,
-        is_active=user_in.is_active,
-        company=user_in.company,
-        tier=user_in.tier
+        is_active=user_in.is_active
     )
     db.add(db_user)
     
@@ -354,74 +331,4 @@ def delete_discount_policy(policy_id: str, db: Session = Depends(get_db), curren
     db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_DISCOUNT_POLICY", entity_type="DISCOUNT_POLICY", entity_id=policy_id))
     db.commit()
 
-# --- APPROVAL RULES ---
-@router.get("/approval-rules", response_model=List[ApprovalRuleResponse])
-def get_approval_rules(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
-    return db.query(ApprovalRule).all()
 
-@router.post("/approval-rules", response_model=ApprovalRuleResponse, status_code=status.HTTP_201_CREATED)
-def create_approval_rule(rule: ApprovalRuleCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_rule = ApprovalRule(**rule.model_dump())
-    db.add(db_rule)
-    db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_APPROVAL_RULE", entity_type="APPROVAL_RULE", details=rule.model_dump()))
-    db.commit()
-    db.refresh(db_rule)
-    return db_rule
-
-@router.patch("/approval-rules/{rule_id}", response_model=ApprovalRuleResponse)
-def update_approval_rule(rule_id: str, rule: ApprovalRuleUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_rule = db.query(ApprovalRule).filter(ApprovalRule.id == rule_id).first()
-    if not db_rule:
-        raise HTTPException(404, "Rule not found")
-    update_data = rule.model_dump(exclude_unset=True)
-    for k, v in update_data.items():
-        setattr(db_rule, k, v)
-    db.add(AuditLog(actor_id=str(current_user.id), action="UPDATE_APPROVAL_RULE", entity_type="APPROVAL_RULE", entity_id=rule_id, details=update_data))
-    db.commit()
-    db.refresh(db_rule)
-    return db_rule
-
-@router.delete("/approval-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_approval_rule(rule_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_rule = db.query(ApprovalRule).filter(ApprovalRule.id == rule_id).first()
-    if not db_rule:
-        raise HTTPException(404, "Rule not found")
-    db.delete(db_rule)
-    db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_APPROVAL_RULE", entity_type="APPROVAL_RULE", entity_id=rule_id))
-    db.commit()
-
-# --- APPROVAL CHAINS ---
-@router.get("/approval-chains", response_model=List[ApprovalChainResponse])
-def get_approval_chains(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(INTERNAL_ROLES))):
-    return db.query(ApprovalChain).all()
-
-@router.post("/approval-chains", response_model=ApprovalChainResponse, status_code=status.HTTP_201_CREATED)
-def create_approval_chain(chain: ApprovalChainCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_chain = ApprovalChain(**chain.model_dump())
-    db.add(db_chain)
-    db.add(AuditLog(actor_id=str(current_user.id), action="CREATE_APPROVAL_CHAIN", entity_type="APPROVAL_CHAIN", details=chain.model_dump()))
-    db.commit()
-    db.refresh(db_chain)
-    return db_chain
-
-@router.patch("/approval-chains/{chain_id}", response_model=ApprovalChainResponse)
-def update_approval_chain(chain_id: str, chain: ApprovalChainUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_chain = db.query(ApprovalChain).filter(ApprovalChain.id == chain_id).first()
-    if not db_chain:
-        raise HTTPException(404, "Chain not found")
-    update_data = chain.model_dump(exclude_unset=True)
-    for k, v in update_data.items():
-        setattr(db_chain, k, v)
-    db.add(AuditLog(actor_id=str(current_user.id), action="UPDATE_APPROVAL_CHAIN", entity_type="APPROVAL_CHAIN", entity_id=chain_id, details=update_data))
-    db.commit()
-    db.refresh(db_chain)
-    return db_chain
-
-@router.delete("/approval-chains/{chain_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_approval_chain(chain_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
-    db_chain = db.query(ApprovalChain).filter(ApprovalChain.id == chain_id).first()
-    if not db_chain:
-        raise HTTPException(404, "Chain not found")
-    db.delete(db_chain)
-    db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_APPROVAL_CHAIN", entity_type="APPROVAL_CHAIN", entity_id=chain_id))
-    db.commit()

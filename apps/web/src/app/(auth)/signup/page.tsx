@@ -6,12 +6,13 @@ import { signupSchema, SignupCredentials } from "@/features/auth/types";
 import { useAuth } from "@/features/auth/auth-context";
 import Link from "next/link";
 import { useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import axios from "axios";
 
 export default function SignupPage() {
   const { signup } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   
   const {
     register,
@@ -99,13 +100,23 @@ export default function SignupPage() {
           <label className="text-[13px] font-medium text-foreground" htmlFor="password">
             Password
           </label>
-          <input
-            {...register("password")}
-            id="password"
-            type="password"
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isSubmitting}
-          />
+          <div className="relative">
+            <input
+              {...register("password")}
+              id="password"
+              type={showPassword ? "text" : "password"}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 pr-10 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isSubmitting}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground-muted hover:text-foreground transition-colors"
+              tabIndex={-1}
+            >
+              {showPassword ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            </button>
+          </div>
           {errors.password && (
             <p className="text-[12px] font-medium text-danger">{errors.password.message}</p>
           )}

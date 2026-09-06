@@ -3,31 +3,7 @@ from typing import Optional, List, Any, Dict
 from datetime import datetime
 from pydantic import EmailStr
 
-# Pricing Rules
-class PricingRuleBase(BaseModel):
-    name: str
-    target_role: str
-    max_discount_percent: float
-    requires_approval_above: float
-    is_active: bool = True
 
-class PricingRuleCreate(PricingRuleBase):
-    pass
-
-class PricingRuleUpdate(BaseModel):
-    name: Optional[str] = None
-    target_role: Optional[str] = None
-    max_discount_percent: Optional[float] = None
-    requires_approval_above: Optional[float] = None
-    is_active: Optional[bool] = None
-
-class PricingRuleResponse(PricingRuleBase):
-    id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 # Subscription Plans
 class SubscriptionPlanBase(BaseModel):
@@ -153,7 +129,8 @@ class CustomerTierResponse(CustomerTierBase):
 class DiscountPolicyBase(BaseModel):
     name: str
     target_tier: Optional[str] = None
-    target_category: Optional[str] = None
+    product_category: Optional[str] = None
+    employee_role: Optional[str] = None
     max_discount_percent: float
     min_margin_percent: Optional[float] = None
     is_active: bool = True
@@ -164,60 +141,13 @@ class DiscountPolicyCreate(DiscountPolicyBase):
 class DiscountPolicyUpdate(BaseModel):
     name: Optional[str] = None
     target_tier: Optional[str] = None
-    target_category: Optional[str] = None
+    product_category: Optional[str] = None
+    employee_role: Optional[str] = None
     max_discount_percent: Optional[float] = None
     min_margin_percent: Optional[float] = None
     is_active: Optional[bool] = None
 
 class DiscountPolicyResponse(DiscountPolicyBase):
-    id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-# Approval Rules
-class ApprovalRuleBase(BaseModel):
-    name: str
-    risk_threshold: Optional[str] = None
-    discount_threshold: Optional[float] = None
-    target_role: str
-    is_active: bool = True
-
-class ApprovalRuleCreate(ApprovalRuleBase):
-    pass
-
-class ApprovalRuleUpdate(BaseModel):
-    name: Optional[str] = None
-    risk_threshold: Optional[str] = None
-    discount_threshold: Optional[float] = None
-    target_role: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class ApprovalRuleResponse(ApprovalRuleBase):
-    id: str
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-# Approval Chains
-class ApprovalChainBase(BaseModel):
-    name: str
-    sequence: str
-    is_active: bool = True
-
-class ApprovalChainCreate(ApprovalChainBase):
-    pass
-
-class ApprovalChainUpdate(BaseModel):
-    name: Optional[str] = None
-    sequence: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class ApprovalChainResponse(ApprovalChainBase):
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None

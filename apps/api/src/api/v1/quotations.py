@@ -35,7 +35,10 @@ class QuoteRecalculateRequest(BaseModel):
 @router.get("/")
 def list_quotations(db: Session = Depends(get_db)):
     try:
-        quotes = db.query(Quotation).options(joinedload(Quotation.deal)).all()
+        quotes = db.query(Quotation).options(
+            joinedload(Quotation.deal),
+            joinedload(Quotation.lines).joinedload(QuoteLine.product),
+        ).all()
         results = []
         for q in quotes:
             deal = q.deal if hasattr(q, 'deal') and q.deal else db.query(Deal).filter(Deal.id == q.deal_id).first()
@@ -57,6 +60,16 @@ def list_quotations(db: Session = Depends(get_db)):
                 "margin_percentage": float(q.margin_percentage or 0.0),
                 "risk_score": q.risk_score or "LOW",
                 "requires_approval": bool(q.requires_approval),
+                "lines": [
+                    {
+                        "product_id": line.product_id,
+                        "product_name": line.product.name if line.product else "Product",
+                        "quantity": line.quantity,
+                        "unit_price": float(line.unit_price or 0.0),
+                        "discount_percent": float(line.discount_percent or 0.0),
+                    }
+                    for line in q.lines
+                ],
                 "created_at": q.created_at
             })
         return results

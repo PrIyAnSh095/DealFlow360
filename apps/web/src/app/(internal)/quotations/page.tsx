@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { quotationsApi } from "@/features/quotations/api";
 import { QuotationResponse } from "@/features/quotations/types";
-import { FileText, Plus, Search, Filter } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +126,8 @@ export default function QuotationsPage() {
                     const marginVal = (Number(quote.margin_percentage) || 0).toFixed(1);
                     
                     return (
-                      <tr key={quote.id || Math.random().toString()} className="hover:bg-muted/50 transition-colors">
+                      <>
+                      <tr key={quote.id} className="hover:bg-muted/50 transition-colors">
                         <td className="px-5 py-3 font-medium text-foreground">QT-{quoteIdStr}</td>
                         <td className="px-5 py-3 text-foreground-muted">Deal {dealIdStr}</td>
                         <td className="px-5 py-3 text-right font-medium text-foreground">
@@ -154,6 +155,22 @@ export default function QuotationsPage() {
                           </Link>
                         </td>
                       </tr>
+                      <tr key={`${quote.id}-lines`} className="bg-muted/20">
+                        <td colSpan={7} className="px-5 py-2">
+                          {quote.lines?.length ? (
+                            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-foreground-muted">
+                              {quote.lines.map((line) => (
+                                <span key={`${quote.id}-${line.product_id}`}>
+                                  {line.product_name} x{line.quantity} | {Number(line.discount_percent || 0).toFixed(1)}% discount
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[12px] text-foreground-muted">No products added.</span>
+                          )}
+                        </td>
+                      </tr>
+                      </>
                     );
                   })
                 )}

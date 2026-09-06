@@ -8,15 +8,32 @@ interface TokenResponse {
   user: User;
 }
 
+const encryptPasswordPayload = (password: string): string => {
+  if (!password) return password;
+  try {
+    return 'enc:' + btoa(password);
+  } catch (e) {
+    return password;
+  }
+};
+
 export const authApi = {
   login: async (credentials: LoginCredentials): Promise<User> => {
-    const response = await apiClient.post<TokenResponse>('/auth/login', credentials);
+    const payload = {
+      ...credentials,
+      password: encryptPasswordPayload(credentials.password)
+    };
+    const response = await apiClient.post<TokenResponse>('/auth/login', payload);
     localStorage.setItem('dealflow_token', response.data.access_token);
     return response.data.user;
   },
 
   signup: async (credentials: SignupCredentials): Promise<User> => {
-    const response = await apiClient.post<TokenResponse>('/auth/register', credentials);
+    const payload = {
+      ...credentials,
+      password: encryptPasswordPayload(credentials.password)
+    };
+    const response = await apiClient.post<TokenResponse>('/auth/register', payload);
     localStorage.setItem('dealflow_token', response.data.access_token);
     return response.data.user;
   },

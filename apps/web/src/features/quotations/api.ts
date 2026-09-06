@@ -7,6 +7,11 @@ export const quotationsApi = {
     return response.data;
   },
 
+  getLatestForDeal: async (dealId: string): Promise<QuotationResponse & { lines: QuoteLineInput[] }> => {
+    const response = await apiClient.get<QuotationResponse & { lines: QuoteLineInput[] }>(`/quotations/deal/${dealId}`);
+    return response.data;
+  },
+
   recalculate: async (quotationId: string, request: QuoteRecalculateRequest): Promise<QuoteRecalculateResponse> => {
     const response = await apiClient.post<QuoteRecalculateResponse>(`/quotations/${quotationId}/recalculate`, request);
     return response.data;

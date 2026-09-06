@@ -21,13 +21,26 @@ export default function DealPage() {
   const [simulation, setSimulation] = useState<QuoteRecalculateResponse | null>(null);
   const [savedQuotationId, setSavedQuotationId] = useState<string | null>(null);
 
-  const { control, register, handleSubmit } = useForm<{ lines: QuoteLineInput[] }>({
+  const { control, register, handleSubmit, reset } = useForm<{ lines: QuoteLineInput[] }>({
     defaultValues: {
       lines: [
         { product_id: "", quantity: 1, discount_percent: 0 }
       ]
     }
   });
+
+  useEffect(() => {
+    quotationsApi.getLatestForDeal(dealId)
+      .then((quotation) => {
+        setSavedQuotationId(quotation.id);
+        if (quotation.lines.length > 0) {
+          reset({ lines: quotation.lines });
+        }
+      })
+      .catch(() => {
+        // New deals may not have a quotation yet.
+      });
+  }, [dealId, reset]);
 
   // Watch for changes in lines to trigger live recalculation
   const watchedLines = useWatch({
@@ -49,7 +62,8 @@ export default function DealPage() {
           }))
         };
         
-        recalculate({ quotationId: dealId, request: req })
+        if (!savedQuotationId) return;
+        recalculate({ quotationId: savedQuotationId, request: req })
           .then(data => {
             setSimulation(data);
           })
@@ -63,18 +77,7 @@ export default function DealPage() {
       const clearTimer = setTimeout(() => setSimulation(null), 0);
       return () => clearTimeout(clearTimer);
     }
-  }, [watchedLines, dealId, recalculate]);
-
-  useEffect(() => {
-    quotationsApi.getQuotations().then((quotations) => {
-      const latestQuotation = quotations
-        .filter((quotation) => quotation.deal_id === dealId)
-        .sort((a, b) => b.id.localeCompare(a.id))[0];
-      if (latestQuotation) setSavedQuotationId(latestQuotation.id);
-    }).catch(() => {
-      // A missing quotation is expected for a new deal.
-    });
-  }, [dealId]);
+  }, [watchedLines, savedQuotationId, recalculate]);
 
   const onSave = async (data: { lines: QuoteLineInput[] }) => {
     const lines = data.lines.filter((line) => line.product_id);

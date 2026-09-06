@@ -68,6 +68,31 @@ def list_quotations(db: Session = Depends(get_db)):
 def list_quotation_products(db: Session = Depends(get_db)):
     return db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
 
+@router.get("/deal/{deal_id}")
+def get_latest_quotation_for_deal(deal_id: str, db: Session = Depends(get_db)):
+    quotation = (
+        db.query(Quotation)
+        .filter(Quotation.deal_id == deal_id)
+        .order_by(Quotation.created_at.desc())
+        .first()
+    )
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found for deal")
+
+    return {
+        "id": quotation.id,
+        "deal_id": quotation.deal_id,
+        "status": quotation.status,
+        "lines": [
+            {
+                "product_id": line.product_id,
+                "quantity": line.quantity,
+                "discount_percent": line.discount_percent,
+            }
+            for line in quotation.lines
+        ],
+    }
+
 @router.get("/{quotation_id}")
 def get_quotation(quotation_id: str, db: Session = Depends(get_db)):
     q = db.query(Quotation).filter(Quotation.id == quotation_id).first()

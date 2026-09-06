@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Briefcase,
   FileText,
+  MessageSquare,
   CheckSquare,
   Package,
   RefreshCcw,
@@ -40,6 +41,7 @@ export const navigation = [
     items: [
       { name: "Deals", href: "/deals", icon: Briefcase, roles: INTERNAL_ROLES },
       { name: "Quotations", href: "/quotations", icon: FileText, roles: INTERNAL_ROLES },
+      { name: "Negotiations", href: "/negotiations", icon: MessageSquare, roles: INTERNAL_ROLES },
       { name: "Approvals", href: "/approvals", icon: CheckSquare, roles: APPROVAL_ROLES },
     ],
   },

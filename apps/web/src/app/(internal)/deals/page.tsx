@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useDeals } from "@/features/deals/hooks";
+import { useDeals, useNegotiations } from "@/features/deals/hooks";
 import { KanbanBoard } from "@/features/deals/components/kanban-board";
 import { DealList } from "@/features/deals/components/deal-list";
 import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
-import { NegotiationsInbox } from "@/features/deals/components/negotiations-inbox";
-import { LayoutGrid, List, Plus, Search, Filter } from "lucide-react";
+import { LayoutGrid, List, Plus, Search, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth-context";
+import Link from "next/link";
 
 export default function DealsPage() {
   const { user } = useAuth();
@@ -17,8 +17,12 @@ export default function DealsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { data: deals, isLoading, error } = useDeals();
+  const { data: negotiations } = useNegotiations();
 
   const canCreate = user && ["sales_rep", "admin"].includes(user.role);
+  const pendingCount = (negotiations || []).filter(
+    (n: any) => n.status === "PENDING_REP_RESPONSE" || n.status === "CUSTOMER" || n.status === "PENDING"
+  ).length;
 
   const filteredDeals = (deals || []).filter((deal) => {
     const matchesSearch =
@@ -101,6 +105,20 @@ export default function DealsPage() {
               <List className="w-4 h-4" />
             </button>
           </div>
+
+          <Link
+            href="/negotiations"
+            className="flex items-center gap-1.5 rounded-md border border-border bg-surface text-foreground-muted hover:text-foreground hover:bg-muted px-3 py-1.5 text-[13px] font-medium transition-colors"
+            title="View Negotiations Page"
+          >
+            <MessageSquare className="w-4 h-4 text-primary shrink-0" />
+            <span className="hidden sm:inline">Negotiations</span>
+            {pendingCount > 0 && (
+              <span className="bg-warning/20 text-warning px-1.5 py-0.2 rounded-full text-[10px] font-bold">
+                {pendingCount}
+              </span>
+            )}
+          </Link>
           
           {canCreate && (
             <button 
@@ -113,8 +131,6 @@ export default function DealsPage() {
           )}
         </div>
       </div>
-
-      <NegotiationsInbox />
 
       <div className="flex-1 min-h-0">
         {isLoading ? (

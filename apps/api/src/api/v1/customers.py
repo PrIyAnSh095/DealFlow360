@@ -20,12 +20,21 @@ def get_customer_options(
     current_user: User = Depends(get_current_user),
 ):
     """Return the small customer payload needed by deal and quotation forms."""
-    return db.query(
+    rows = db.query(
         Customer.id,
         Customer.name,
         Customer.email,
         Customer.company,
     ).order_by(Customer.name).all()
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "email": row.email,
+            "company": row.company,
+        }
+        for row in rows
+    ]
 
 @router.get("/", response_model=List[CustomerResponse])
 def get_customers(

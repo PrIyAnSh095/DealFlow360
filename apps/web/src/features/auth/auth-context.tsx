@@ -53,8 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryFn: authApi.me,
     enabled: isMounted && hasToken,
     retry: false,
-    // If you don't have a backend running yet, you might want to bypass this for local UI testing
-    // by returning a mock user or letting it fail gracefully.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 
   const loginMutation = useMutation({

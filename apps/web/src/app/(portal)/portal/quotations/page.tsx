@@ -75,7 +75,7 @@ export default function MyQuotationsPage() {
                     : "bg-surface border-border text-foreground-muted hover:text-foreground hover:bg-muted"
                 )}
               >
-                {status === "all" ? "All" : status.replace(/_/g, " ")}
+                {status === "all" ? "All" : status.split("_").join(" ")}
               </button>
             )
           )}

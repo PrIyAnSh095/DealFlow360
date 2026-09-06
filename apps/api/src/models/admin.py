@@ -52,16 +52,6 @@ class Category(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-class CustomerTier(Base):
-    __tablename__ = "customer_tiers"
-    __table_args__ = {'extend_existing': True}
-    
-    id = Column(String, primary_key=True, default=generate_uuid, index=True)
-    name = Column(String, nullable=False, unique=True) # e.g. Bronze, Silver, Gold
-    baseline_discount = Column(Numeric(5, 2), default=0.00)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 class DiscountPolicy(Base):
     __tablename__ = "discount_policies"

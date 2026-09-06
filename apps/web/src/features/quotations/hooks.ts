@@ -6,6 +6,8 @@ export const useProducts = () => {
   return useQuery({
     queryKey: ['products'],
     queryFn: quotationsApi.getProducts,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 };
 

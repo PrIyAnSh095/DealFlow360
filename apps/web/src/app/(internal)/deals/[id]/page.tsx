@@ -14,7 +14,7 @@ export default function DealPage() {
   const params = useParams();
   const dealId = params.id as string;
   
-  const { data: products } = useProducts();
+  const { data: products, isLoading: isLoadingProducts, isError: productsError } = useProducts();
   const recalculateMutation = useRecalculateQuote();
   const { mutateAsync: recalculate, isPending: isSimulating } = recalculateMutation;
   
@@ -107,8 +107,12 @@ export default function DealPage() {
     alert("Customer Portal link copied to clipboard!");
   };
 
-  if (!products) {
+  if (isLoadingProducts) {
     return <div className="p-8 text-[13px] text-foreground-muted">Loading deal workspace...</div>;
+  }
+
+  if (productsError || !products) {
+    return <div className="p-8 text-[13px] text-danger">Unable to load products. Refresh the page and try again.</div>;
   }
 
   return (

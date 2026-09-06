@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from decimal import Decimal
 from src.api.deps import DEAL_VIEW_ROLES, DEAL_WRITE_ROLES, get_db, RoleChecker
@@ -21,8 +21,7 @@ def get_deals(
     """
     Get all deals accessible by the current user.
     """
-    # For now, sales reps see all deals (or we could filter by owner if owner_id existed)
-    deals = db.query(Deal).all()
+    deals = db.query(Deal).options(joinedload(Deal.customer)).order_by(Deal.created_at.desc()).all()
     return deals
 
 @router.get("/{deal_id}", response_model=DealResponse)

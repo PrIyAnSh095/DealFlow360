@@ -6,7 +6,8 @@ from src.models.approval import ApprovalRequest, ApprovalAuditLog
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
 from src.models.portal import QuoteMessage
 from src.models.customer import CustomerTier, Customer
-from src.models.pricing import Category, PriceList, PriceListItem, DiscountPolicy, ApprovalRule
+from src.models.admin import Category, DiscountPolicy, ApprovalRule
+from src.models.pricing import PriceList, PriceListItem
 from src.models.billing import SubscriptionPlan, Subscription, SubscriptionLine, BillingScheduleItem, Invoice, InvoiceLine, Payment
 from src.models.audit import AuditEvent
 from src.models.ai_config import CompanyAIConfig

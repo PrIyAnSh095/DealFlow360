@@ -2,7 +2,7 @@ from typing import List, Dict, Tuple
 from sqlalchemy.orm import Session
 from src.models.product import Product
 from src.models.quotation import Quotation, QuoteLine
-from src.models.pricing import DiscountPolicy, ApprovalRule
+from src.models.admin import DiscountPolicy, ApprovalRule
 
 def recalculate_quotation(db: Session, quotation: Quotation) -> Quotation:
     """
@@ -57,10 +57,10 @@ def validate_line_discount(db: Session, customer_tier_id: str, category_id: str,
     Returns (is_allowed, reason, max_allowed_pct).
     """
     policy = db.query(DiscountPolicy).filter(
-        (DiscountPolicy.tier_id == customer_tier_id) | (DiscountPolicy.category_id == category_id)
+        (DiscountPolicy.target_tier == customer_tier_id) | (DiscountPolicy.target_category == category_id)
     ).first()
     
-    max_allowed = policy.max_discount_pct if policy else 30.0
+    max_allowed = float(policy.max_discount_percent) if policy else 30.0
     
     if requested_discount_pct > max_allowed:
         return False, f"Requested discount {requested_discount_pct}% exceeds max policy limit of {max_allowed}%", max_allowed

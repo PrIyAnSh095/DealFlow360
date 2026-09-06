@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from typing import List
 from src.core.database import get_db
 from src.api.deps import APPROVAL_ACTION_ROLES, APPROVAL_VIEW_ROLES, RoleChecker
@@ -13,8 +14,8 @@ router = APIRouter()
 
 @router.get("", response_model=List[ApprovalRequestResponse])
 def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_VIEW_ROLES))):
-    # Ensure any deal in "approval" status has a corresponding ApprovalRequest
-    approval_deals = db.query(Deal).filter(Deal.status == "approval").all()
+    # 1. Fetch all deals in approval status (case-insensitive)
+    approval_deals = db.query(Deal).filter(func.lower(Deal.status) == "approval").all()
     for deal in approval_deals:
         quote = db.query(Quotation).filter(Quotation.deal_id == deal.id).order_by(Quotation.created_at.desc()).first()
         if quote:
@@ -26,8 +27,22 @@ def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(Ro
                     status="PENDING"
                 )
                 db.add(new_req)
-                db.commit()
+    
+    # 2. Fetch all quotations where requires_approval is True
+    approval_quotes = db.query(Quotation).filter(Quotation.requires_approval == True).all()
+    for quote in approval_quotes:
+        existing_req = db.query(ApprovalRequest).filter(ApprovalRequest.quotation_id == quote.id).first()
+        if not existing_req:
+            new_req = ApprovalRequest(
+                quotation_id=quote.id,
+                requester_id=current_user.id if (current_user and hasattr(current_user, 'id')) else "u-sales",
+                status="PENDING"
+            )
+            db.add(new_req)
+            
+    db.commit()
 
+    # 3. Query all approval requests ordered by created_at desc
     reqs = db.query(ApprovalRequest).order_by(ApprovalRequest.created_at.desc()).all()
     
     response_list = []
@@ -35,14 +50,16 @@ def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(Ro
         quote = db.query(Quotation).filter(Quotation.id == req.quotation_id).first()
         deal = None
         if quote:
-            deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
+            deal = db.query(Deal).options(joinedload(Deal.customer)).filter(Deal.id == quote.deal_id).first()
             
         resp = ApprovalRequestResponse.model_validate(req)
-        if deal and quote:
+        if quote:
+            resp.quote_total = float(quote.total or 0.0)
+            resp.quote_margin = float(quote.margin_percentage or 0.0)
+        if deal:
             resp.deal_name = deal.customer_name if (deal and deal.customer_name) else f"Deal {deal.id[:8]}"
-            resp.customer_name = deal.customer_name if (deal and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Customer")
-            resp.quote_total = quote.total
-            resp.quote_margin = quote.margin_percentage
+            cust_name = deal.customer_name if deal.customer_name else (deal.customer.company if (hasattr(deal, 'customer') and deal.customer and hasattr(deal.customer, 'company')) else "Customer")
+            resp.customer_name = cust_name
             
         response_list.append(resp)
         

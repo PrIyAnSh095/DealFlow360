@@ -6,22 +6,24 @@ import { Deal, DealStatus } from "../types";
 import { DealCard } from "./deal-card";
 import { useUpdateDealStatus } from "../hooks";
 
-const COLUMNS: { id: DealStatus; title: string }[] = [
-  { id: "draft", title: "Draft" },
-  { id: "review", title: "Review" },
+const COLUMNS: { id: string; title: string }[] = [
+  { id: "new", title: "New / Qualified" },
+  { id: "quotation", title: "Quotation" },
   { id: "approval", title: "Approval" },
   { id: "negotiation", title: "Negotiation" },
-  { id: "confirmed", title: "Won / Confirmed" },
-  { id: "completed", title: "Completed" },
+  { id: "won", title: "Won / Confirmed" },
+  { id: "lost", title: "Lost" },
 ];
 
 export const normalizeDealStatus = (status: string): string => {
+  if (!status) return "new";
   const s = status.toLowerCase();
-  if (s === "won" || s === "closed_won" || s === "confirmed") return "confirmed";
-  if (s === "lost" || s === "closed_lost") return "draft";
-  if (s === "proposal") return "review";
-  if (s === "lead" || s === "qualification") return "draft";
-  return s;
+  if (s === "won" || s === "closed_won" || s === "confirmed" || s === "completed" || s === "fulfillment") return "won";
+  if (s === "lost" || s === "closed_lost") return "lost";
+  if (s === "approval") return "approval";
+  if (s === "negotiation") return "negotiation";
+  if (s === "quotation" || s === "quote" || s === "proposal" || s === "review") return "quotation";
+  return "new";
 };
 
 interface KanbanBoardProps {
@@ -73,7 +75,7 @@ export function KanbanBoard({ initialDeals }: KanbanBoardProps) {
     <div className="flex h-full min-h-[calc(100vh-12rem)] overflow-x-auto pb-4 gap-4">
       <DragDropContext onDragEnd={onDragEnd}>
         {COLUMNS.map((column) => {
-          const columnDeals = deals.filter((d) => d.status === column.id);
+          const columnDeals = deals.filter((d) => normalizeDealStatus(d.status) === column.id);
           
           return (
             <div key={column.id} className="flex flex-col w-[280px] shrink-0 bg-muted/40 rounded-lg border border-border/50">

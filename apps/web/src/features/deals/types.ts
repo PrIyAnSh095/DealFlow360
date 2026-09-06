@@ -1,11 +1,17 @@
 export type DealStatus = 
+  | 'new'
+  | 'qualified'
+  | 'quotation'
   | 'draft' 
   | 'review' 
   | 'approval' 
   | 'negotiation' 
+  | 'won'
+  | 'lost'
   | 'confirmed' 
   | 'fulfillment' 
-  | 'completed';
+  | 'completed'
+  | string;
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 

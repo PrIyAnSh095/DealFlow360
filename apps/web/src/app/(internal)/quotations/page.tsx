@@ -3,17 +3,21 @@
 import { useEffect, useState } from "react";
 import { quotationsApi } from "@/features/quotations/api";
 import { QuotationResponse } from "@/features/quotations/types";
-import { FileText, Plus, Search, Filter, LayoutGrid, List } from "lucide-react";
+import { FileText, Plus, Search, Filter } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { QuotationCard } from "@/components/QuotationCard";
+
+import { useAuth } from "@/features/auth/auth-context";
 
 export default function QuotationsPage() {
+  const { user } = useAuth();
   const [quotations, setQuotations] = useState<QuotationResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const canCreate = user && ["sales_rep", "admin"].includes(user.role);
 
   useEffect(() => {
     quotationsApi.getQuotations()
@@ -22,10 +26,16 @@ export default function QuotationsPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const filteredQuotes = quotations.filter((q) => 
-    q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (q.customer_name && q.customer_name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredQuotations = quotations.filter((quote) => {
+    const matchesSearch =
+      !searchQuery ||
+      quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quote.deal_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      quote.status.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -51,77 +61,46 @@ export default function QuotationsPage() {
             />
           </div>
           
-          <div className="flex items-center rounded-md border border-border bg-surface p-0.5">
-            <button
-              onClick={() => setViewMode("grid")}
-              className={cn(
-                "p-1.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
-                viewMode === "grid" ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-foreground-muted hover:text-foreground"
-              )}
-              title="Grid View (Quotation Cards)"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setViewMode("table")}
-              className={cn(
-                "p-1.5 rounded text-[12px] font-medium transition-colors flex items-center gap-1",
-                viewMode === "table" ? "bg-primary text-primary-foreground font-bold shadow-xs" : "text-foreground-muted hover:text-foreground"
-              )}
-              title="Table View"
-            >
-              <List className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <Link href="/quotations/new" className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1">
-            <Plus className="w-4 h-4 sm:mr-1.5" />
-            <span className="hidden sm:inline">New Quote</span>
-          </Link>
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium focus:outline-none focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="draft">Draft</option>
+            <option value="pending_approval">Pending Approval</option>
+            <option value="approved">Approved</option>
+            <option value="sent">Sent</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="expired">Expired</option>
+          </select>
+          
+          {canCreate && (
+            <Link href="/quotations/new" className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm ml-1">
+              <Plus className="w-4 h-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New Quote</span>
+            </Link>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 bg-surface border border-border rounded-lg shadow-sm overflow-hidden flex flex-col">
         {isLoading ? (
           <div className="flex items-center justify-center h-96 text-foreground-muted text-[13px]">
-            Loading quotations from PostgreSQL...
+            Loading quotations...
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-96 text-danger text-[13px]">
-            Failed to load quotations from backend API.
-          </div>
-        ) : filteredQuotes.length === 0 ? (
-          <div className="flex items-center justify-center h-96 text-foreground-muted text-[13px]">
-            No quotations found matching criteria.
-          </div>
-        ) : viewMode === "grid" ? (
-          /* Grid View displaying dynamic QuotationCards with top-right ⓘ AI button */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredQuotes.map((quote) => (
-              <QuotationCard
-                key={quote.id}
-                id={quote.id}
-                dealId={quote.deal_id}
-                customerName={quote.customer_name || "Customer"}
-                status={quote.status}
-                subtotal={quote.subtotal}
-                totalDiscount={quote.total_discount}
-                total={quote.total}
-                marginPercentage={quote.margin_percentage}
-                riskScore={quote.risk_score}
-                requiresApproval={quote.requires_approval}
-                productsCount={quote.lines ? quote.lines.length : 1}
-              />
-            ))}
+            Failed to load quotations.
           </div>
         ) : (
-          /* Table View */
-          <div className="bg-surface border border-border rounded-lg shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-border bg-muted/50 text-[12px] font-semibold text-foreground-muted uppercase tracking-wider">
                   <th className="px-5 py-3 font-medium">Quote ID</th>
-                  <th className="px-5 py-3 font-medium">Customer</th>
+                  <th className="px-5 py-3 font-medium">Deal ID</th>
                   <th className="px-5 py-3 font-medium text-right">Value</th>
                   <th className="px-5 py-3 font-medium text-right">Margin</th>
                   <th className="px-5 py-3 font-medium text-center">Risk</th>
@@ -130,36 +109,49 @@ export default function QuotationsPage() {
                 </tr>
               </thead>
               <tbody className="text-[13px] divide-y divide-border">
-                {filteredQuotes.map((quote) => (
-                  <tr key={quote.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">QT-{quote.id.slice(0, 8)}</td>
-                    <td className="px-5 py-3 text-foreground font-semibold">{quote.customer_name || "Customer"}</td>
-                    <td className="px-5 py-3 text-right font-medium text-foreground">
-                      ₹{(quote.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-5 py-3 text-right font-medium">
-                      {(quote.margin_percentage || 0).toFixed(1)}%
-                    </td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border uppercase tracking-wider",
-                        quote.risk_score === 'HIGH' ? "bg-danger/10 text-danger border-danger/20" : 
-                        quote.risk_score === 'MEDIUM' ? "bg-warning/10 text-warning border-warning/20" : 
-                        "bg-success/10 text-success border-success/20"
-                      )}>
-                        {quote.risk_score}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-foreground-muted capitalize">
-                      {quote.status}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <Link href={`/quotations/${quote.id}`} className="text-primary font-medium hover:underline">
-                        Open
-                      </Link>
+                {filteredQuotations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-8 text-center text-foreground-muted">
+                      No quotations found.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredQuotations.map((quote) => {
+                    const isHighRisk = quote.risk_score === 'HIGH';
+                    const isMedRisk = quote.risk_score === 'MEDIUM';
+                    
+                    return (
+                      <tr key={quote.id} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-foreground">QT-{quote.id.slice(0, 6)}</td>
+                        <td className="px-5 py-3 text-foreground-muted">Deal {quote.deal_id.slice(0, 6)}</td>
+                        <td className="px-5 py-3 text-right font-medium text-foreground">
+                          ₹{(quote.total / 1000).toFixed(1)}k
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium">
+                          {Number(quote.margin_percentage).toFixed(1)}%
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <span className={cn(
+                            "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border",
+                            isHighRisk ? "bg-danger/10 text-danger border-danger/20" : 
+                            isMedRisk ? "bg-warning/10 text-warning border-warning/20" : 
+                            "bg-success/10 text-success border-success/20"
+                          )}>
+                            {quote.risk_score === 'HIGH' ? 'High' : quote.risk_score === 'MEDIUM' ? 'Med' : 'Low'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-foreground-muted capitalize">
+                          {quote.status}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Link href={`/deals/${quote.deal_id}`} className="text-primary font-medium hover:underline">
+                            Open
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

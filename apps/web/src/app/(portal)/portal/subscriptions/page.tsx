@@ -12,6 +12,8 @@ import {
   ArrowUpRight,
   AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
+import { customerApi } from "@/features/customer/api";
 import { Subscription } from "@/features/customer/types";
 import { cn } from "@/lib/utils";
 
@@ -200,7 +202,10 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
       {!isCancelled && (
         <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface text-[12px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors">
+            <button 
+              onClick={() => toast.success("Redirecting to plan selection...")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-surface text-[12px] font-medium text-foreground-muted hover:text-foreground hover:bg-muted transition-colors"
+            >
               <ArrowUpRight className="w-3.5 h-3.5" />
               Upgrade Plan
             </button>
@@ -239,7 +244,16 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
                   Keep Subscription
                 </button>
                 <button
-                  onClick={() => setShowCancelConfirm(false)}
+                  onClick={async () => {
+                    try {
+                      await customerApi.cancelSubscription(sub.id);
+                      toast.success("Subscription cancelled successfully.");
+                      setShowCancelConfirm(false);
+                      setCancelled(true);
+                    } catch (error) {
+                      toast.error("Failed to cancel subscription.");
+                    }
+                  }}
                   className="px-3 py-1.5 rounded-md bg-danger text-danger-foreground text-[12px] font-medium hover:bg-danger/90 transition-colors"
                 >
                   Confirm Cancellation

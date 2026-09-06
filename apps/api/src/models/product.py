@@ -1,6 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Float, Boolean, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import synonym
 from src.core.database import Base
 
 def generate_uuid():
@@ -16,6 +17,7 @@ class Product(Base):
     sales_price = Column(Float, nullable=False)
     cost = Column(Float, nullable=False)
     active = Column(Boolean, default=True)
+    is_active = synonym("active")
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

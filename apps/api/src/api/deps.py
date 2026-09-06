@@ -17,6 +17,20 @@ from src.models.user import User
 # This drives the Swagger UI "Authorize" button.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+# Central role groups used by route dependencies. Keep these names aligned with
+# the role values stored in the users table and the frontend navigation policy.
+INTERNAL_ROLES = ["sales_rep", "sales_manager", "finance", "admin"]
+DEAL_VIEW_ROLES = INTERNAL_ROLES
+DEAL_WRITE_ROLES = ["sales_rep", "admin"]
+QUOTE_VIEW_ROLES = INTERNAL_ROLES
+QUOTE_WRITE_ROLES = ["sales_rep", "admin"]
+APPROVAL_VIEW_ROLES = INTERNAL_ROLES
+APPROVAL_ACTION_ROLES = ["sales_manager", "finance", "admin"]
+ANALYTICS_ROLES = ["sales_manager", "finance", "admin"]
+HEALTH_ROLES = INTERNAL_ROLES
+RESCUE_ROLES = ["sales_manager", "admin"]
+SEARCH_ROLES = INTERNAL_ROLES
+
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),

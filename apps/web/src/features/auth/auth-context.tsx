@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useSyncExternalStore } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { User, LoginCredentials, SignupCredentials } from "./types";
 import { authApi } from "./api";
@@ -17,13 +17,41 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const subscribeToToken = (onChange: () => void) => {
+  if (typeof window === "undefined") return () => {};
+
+  const handleStorageChange = () => onChange();
+  window.addEventListener("storage", handleStorageChange);
+  window.addEventListener("dealflow-auth-change", handleStorageChange);
+  return () => {
+    window.removeEventListener("storage", handleStorageChange);
+    window.removeEventListener("dealflow-auth-change", handleStorageChange);
+  };
+};
+
+const getTokenSnapshot = () =>
+  typeof window !== "undefined" && Boolean(localStorage.getItem("dealflow_token"));
+
+const getServerTokenSnapshot = () => false;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const isMounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+  const hasToken = useSyncExternalStore(
+    subscribeToToken,
+    getTokenSnapshot,
+    getServerTokenSnapshot
+  );
 
-  const { data: user, isLoading, error } = useQuery({
+  const { data: user, isPending } = useQuery({
     queryKey: ["auth", "me"],
     queryFn: authApi.me,
+    enabled: isMounted && hasToken,
     retry: false,
     // If you don't have a backend running yet, you might want to bypass this for local UI testing
     // by returning a mock user or letting it fail gracefully.
@@ -33,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: authApi.login,
     onSuccess: (data) => {
       queryClient.setQueryData(["auth", "me"], data);
+      window.dispatchEvent(new Event("dealflow-auth-change"));
       router.push(data.role === "customer" ? "/portal" : "/dashboard");
     },
   });
@@ -41,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: authApi.signup,
     onSuccess: (data) => {
       queryClient.setQueryData(["auth", "me"], data);
+      window.dispatchEvent(new Event("dealflow-auth-change"));
       router.push(data.role === "customer" ? "/portal" : "/dashboard");
     },
   });
@@ -49,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     mutationFn: authApi.logout,
     onSuccess: () => {
       queryClient.setQueryData(["auth", "me"], null);
+      window.dispatchEvent(new Event("dealflow-auth-change"));
       router.push("/login");
     },
   });
@@ -80,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user: user ?? null,
-        isLoading,
+        isLoading: !isMounted || (hasToken && isPending),
         login,
         signup,
         logout,

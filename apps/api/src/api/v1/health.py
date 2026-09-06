@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
-from src.api.deps import get_db, get_current_user
+from src.api.deps import HEALTH_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.deal import Deal
 
@@ -22,7 +22,7 @@ class DealHealthResponse(BaseModel):
 @router.get("/", response_model=List[DealHealthResponse])
 def get_health(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(HEALTH_ROLES))
 ):
     deals = db.query(Deal).filter(Deal.status.in_(["draft", "negotiation", "approval"])).all()
     health_data = []
@@ -57,8 +57,8 @@ def get_health(
             health_score=max(0, score),
             margin_health=margin_health,
             discount_risk=discount_risk,
-            inventory_risk="Low", # Mocked for phase 1 sales rep
-            engagement="Active",
+            inventory_risk="Not tracked",
+            engagement="Not tracked",
             issues=issues
         ))
         

@@ -68,7 +68,7 @@ export default function CustomerTiersPage() {
             {isCreating && (
               <tr className="bg-primary/5">
                 <td className="px-4 py-3"><input autoFocus value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} className="w-full p-1 border rounded" placeholder="Tier Name (e.g. Gold)" /></td>
-                <td className="px-4 py-3"><input type="number" value={createForm.baseline_discount} onChange={e => setCreateForm({...createForm, baseline_discount: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right ml-auto" /></td>
+                <td className="px-4 py-3 text-right"><input type="number" value={createForm.baseline_discount} onChange={e => setCreateForm({...createForm, baseline_discount: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right" /></td>
                 <td className="px-4 py-3 text-center"><span className="text-success font-bold text-xs uppercase">Active</span></td>
                 <td className="px-4 py-3 text-right space-x-2">
                   <button onClick={() => setIsCreating(false)} className="text-foreground-muted">Cancel</button>
@@ -83,7 +83,7 @@ export default function CustomerTiersPage() {
                   {isEditing === tier.id ? <input value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-1 border rounded" /> : <span className="font-medium text-foreground">{tier.name}</span>}
                 </td>
                 <td className="px-4 py-3 text-right font-mono">
-                  {isEditing === tier.id ? <input type="number" value={editForm.baseline_discount} onChange={e => setEditForm({...editForm, baseline_discount: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right ml-auto" /> : `${tier.baseline_discount}%`}
+                  {isEditing === tier.id ? <input type="number" value={editForm.baseline_discount} onChange={e => setEditForm({...editForm, baseline_discount: parseFloat(e.target.value)})} className="w-20 p-1 border rounded text-right" /> : `${tier.baseline_discount}%`}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button 

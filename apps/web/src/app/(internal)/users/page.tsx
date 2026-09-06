@@ -10,6 +10,12 @@ export default function UsersPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "", email: "", password: "", role: "sales", is_active: true
+  });
+  const ROLES = ['sales', 'manager', 'finance', 'admin', 'sales_rep', 'sales_manager'];
 
   const fetchUsers = async () => {
     try {
@@ -49,6 +55,25 @@ export default function UsersPage() {
     }
   };
 
+  const handleCreate = async () => {
+    if (!createForm.name || !createForm.email || !createForm.password) {
+      alert("Name, email, and password are required.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await apiClient.post(`/admin/users`, createForm);
+      setCreateForm({ name: "", email: "", password: "", role: "sales", is_active: true });
+      setIsCreating(false);
+      fetchUsers();
+    } catch (err: any) {
+      console.error("Failed to create user", err);
+      alert(err.response?.data?.detail || "Failed to create user.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -56,7 +81,10 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">User Management</h1>
           <p className="text-[13px] text-foreground-muted mt-1">Manage platform roles and access.</p>
         </div>
-        <button className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm">
+        <button 
+          onClick={() => setIsCreating(true)}
+          className="flex items-center justify-center rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-[13px] font-medium hover:bg-primary/90 transition-colors shadow-sm"
+        >
           <Plus className="w-4 h-4 mr-1.5" />
           Create User
         </button>
@@ -76,6 +104,33 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="text-[13px] divide-y divide-border">
+              {isCreating && (
+                <tr className="bg-primary/5">
+                  <td className="px-5 py-3">
+                    <input autoFocus value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})} className="w-full p-1 border rounded text-[13px]" placeholder="Name" />
+                  </td>
+                  <td className="px-5 py-3">
+                    <input type="email" value={createForm.email} onChange={e => setCreateForm({...createForm, email: e.target.value})} className="w-full p-1 border rounded text-[13px]" placeholder="Email" />
+                  </td>
+                  <td className="px-5 py-3">
+                    <select value={createForm.role} onChange={e => setCreateForm({...createForm, role: e.target.value})} className="w-full p-1 border rounded text-[13px] bg-transparent">
+                      {ROLES.map(r => <option key={r} value={r}>{r.replace('_', ' ')}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-5 py-3">
+                    <input type="password" value={createForm.password} onChange={e => setCreateForm({...createForm, password: e.target.value})} className="w-full p-1 border rounded text-[13px]" placeholder="Password" />
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    <span className="text-success font-bold text-xs uppercase">Active</span>
+                  </td>
+                  <td className="px-5 py-3 text-right space-x-2 whitespace-nowrap">
+                    <button onClick={() => setIsCreating(false)} className="text-foreground-muted hover:text-foreground" disabled={isSaving}>Cancel</button>
+                    <button onClick={handleCreate} className="text-primary font-bold disabled:opacity-50" disabled={isSaving}>
+                      {isSaving ? "Saving..." : "Save"}
+                    </button>
+                  </td>
+                </tr>
+              )}
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-8 text-center text-foreground-muted">Loading users...</td>

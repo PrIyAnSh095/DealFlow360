@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
-from src.api.deps import get_db, get_current_user
+from src.api.deps import RESCUE_ROLES, get_db, RoleChecker
 from src.models.user import User
 from src.models.deal import Deal
 from src.models.quotation import Quotation, QuoteLine
@@ -24,7 +24,7 @@ class DealRescueRecommendation(BaseModel):
 def get_deal_rescue(
     deal_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(RoleChecker(RESCUE_ROLES))
 ):
     deal = db.query(Deal).filter(Deal.id == deal_id).first()
     if not deal:

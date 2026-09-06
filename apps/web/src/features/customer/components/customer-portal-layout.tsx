@@ -12,7 +12,6 @@ import {
   Receipt,
   RefreshCcw,
   LogOut,
-  Bell,
   User,
   ChevronLeft,
   ChevronRight,
@@ -36,7 +35,6 @@ const customerNav = [
         name: "Negotiate",
         href: "/portal/negotiate",
         icon: MessageSquareDiff,
-        badge: "1",
       },
     ],
   },
@@ -126,11 +124,6 @@ export function CustomerPortalLayout({
                         {!collapsed && (
                           <span className="flex-1 truncate">{item.name}</span>
                         )}
-                        {"badge" in item && item.badge && !collapsed && (
-                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
-                            {item.badge}
-                          </span>
-                        )}
                       </Link>
                     </li>
                   );
@@ -191,16 +184,17 @@ export function CustomerPortalLayout({
               <input
                 type="search"
                 placeholder="Search quotations, orders..."
+                onChange={() => {
+                  import("sonner").then(({ toast }) => 
+                    toast.info("Please use the specific search bars on the Quotations or Orders pages.")
+                  );
+                }}
                 className="w-full pl-9 pr-4 py-1.5 bg-background border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all placeholder:text-foreground-muted"
               />
             </div>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle className="h-8 w-8 flex items-center justify-center" />
-            <button className="relative p-2 rounded-md hover:bg-muted text-foreground-muted hover:text-foreground transition-colors" title="Notifications">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-danger rounded-full ring-2 ring-surface" />
-            </button>
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}

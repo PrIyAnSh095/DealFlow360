@@ -19,6 +19,7 @@ WEAK_PASSWORDS = {"password", "123456", "12345678", "admin123", "qwerty", "letme
 
 def validate_password_strength(password: str) -> Tuple[bool, str]:
     """Authoritative backend password strength validation."""
+    password = decode_payload_password(password)
     if len(password) < 8:
         return False, "Password must be at least 8 characters long."
     if not re.search(r"[A-Z]", password):
@@ -50,13 +51,36 @@ def generate_secure_password(length: int = 16) -> str:
     secrets.SystemRandom().shuffle(password_chars)
     return "".join(password_chars)
 
+import base64
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
+
+def decode_payload_password(password: str) -> str:
+    """Decodes encrypted or base64 payload strings if present (e.g. 'enc:...')."""
+    if not password:
+        return password
+    if password.startswith("enc:"):
+        try:
+            return base64.b64decode(password[4:]).decode("utf-8")
+        except Exception:
+            pass
+    return password
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    if get_password_hash(plain_password) == hashed_password:
-        return True
-    return False
+    if not plain_password or not hashed_password:
+        return False
+    plain = decode_payload_password(plain_password)
+    if hashed_password.startswith("$"):
+        try:
+            return pwd_context.verify(plain, hashed_password)
+        except Exception:
+            return False
+    return hashlib.sha256(plain.encode("utf-8")).hexdigest() == hashed_password
 
 def get_password_hash(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    plain = decode_payload_password(password)
+    return pwd_context.hash(plain)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     if isinstance(data, str):

@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
             <DollarSign className="w-4 h-4 text-success" /> Total Revenue
           </div>
           <div className="text-3xl font-bold text-foreground">
-            ${(overview.total_revenue / 1000).toFixed(1)}k
+            ₹{(overview.total_revenue / 100000).toFixed(1)}L
           </div>
           <div className={`text-[11px] font-medium mt-1 flex items-center gap-1 ${overview.mom_revenue >= 0 ? 'text-success' : 'text-danger'}`}>
             {overview.mom_revenue >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
                     style={{ height: `${heightPercent}%`, minHeight: '4px' }}
                   >
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-md">
-                      ${(point.value / 1000).toFixed(1)}k
+                      ₹{(point.value / 100000).toFixed(1)}L
                     </div>
                   </div>
                   <div className="text-[11px] font-medium text-foreground-muted">{point.label}</div>

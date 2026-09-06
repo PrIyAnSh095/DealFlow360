@@ -47,34 +47,34 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
     total_rev_val = db.query(func.sum(Invoice.amount_paid)).scalar()
     total_rev = Decimal(str(total_rev_val)) if total_rev_val is not None else Decimal('0.0')
     
-    # Win rate
+    # Win rate (case-insensitive)
     total_deals = db.query(Deal).count()
-    won_deals = db.query(Deal).filter(Deal.status == "won").count()
-    win_rate = (won_deals / total_deals * 100) if total_deals > 0 else 0.0
+    won_deals = db.query(Deal).filter(func.lower(Deal.status) == "won").count()
+    win_rate = (won_deals / total_deals * 100.0) if total_deals > 0 else 0.0
     
-    # Active deals
-    active_deals = db.query(Deal).filter(Deal.status.in_(["prospecting", "qualification", "proposal", "negotiation", "approval"])).count()
+    # Active deals (case-insensitive)
+    active_statuses = ["prospecting", "qualification", "proposal", "negotiation", "approval", "quotation", "new", "qualified"]
+    active_deals = db.query(Deal).filter(func.lower(Deal.status).in_(active_statuses)).count()
     
-    # Use the current age of active deals as the available cycle-time signal.
-    active_deals_query = db.query(Deal).filter(Deal.status.in_(
-        ["prospecting", "qualification", "proposal", "negotiation", "approval"]
-    ))
+    active_deals_query = db.query(Deal).filter(func.lower(Deal.status).in_(active_statuses))
     active_deal_rows = active_deals_query.all()
     now = datetime.now(timezone.utc)
     cycle_ages = [
-        (now - as_utc(deal.created_at)).total_seconds() / 86400
+        (now - as_utc(deal.created_at)).total_seconds() / 86400.0
         for deal in active_deal_rows
         if deal.created_at
     ]
     avg_cycle_time = sum(cycle_ages) / len(cycle_ages) if cycle_ages else 0.0
     
     # Average discount
-    avg_disc = db.query(func.avg(Quotation.margin_percentage)).scalar() or 0.0
+    avg_disc_val = db.query(func.avg(Quotation.total_discount)).scalar() or 0.0
+    avg_subtotal_val = db.query(func.avg(Quotation.subtotal)).scalar() or 1.0
+    avg_disc = (avg_disc_val / avg_subtotal_val * 100.0) if avg_subtotal_val > 0 else 0.0
     
     overview = AnalyticsOverview(
         total_revenue=total_rev,
-        win_rate=win_rate,
-        avg_cycle_time_days=avg_cycle_time,
+        win_rate=float(win_rate),
+        avg_cycle_time_days=float(avg_cycle_time),
         avg_discount=float(avg_disc),
         active_deals=active_deals
     )
@@ -108,7 +108,7 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
         ))
         discount_trend.append(TrendPoint(
             label=month_start.strftime("%b"),
-            value=float((month_discount / month_subtotal) * 100) if month_subtotal > 0 else 0.0,
+            value=float((month_discount / month_subtotal) * 100.0) if month_subtotal > 0 else 0.0,
         ))
 
     mom_revenue = 0.0
@@ -117,7 +117,7 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
         curr = revenue_trend[-1].value
         prev = revenue_trend[-2].value
         if prev > 0:
-            mom_revenue = ((curr - prev) / prev) * 100
+            mom_revenue = ((curr - prev) / prev) * 100.0
         elif curr > 0:
             mom_revenue = 100.0
 
@@ -125,34 +125,32 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
         curr = discount_trend[-1].value
         prev = discount_trend[-2].value
         if prev > 0:
-            mom_discount = curr - prev # absolute change
+            mom_discount = curr - prev
 
-    # Calculate MoM win rate & cycle time dynamically
     prev_month_start = month_starts[-2] if len(month_starts) >= 2 else month_starts[0]
     curr_month_start = month_starts[-1] if len(month_starts) >= 1 else now
     
     prev_deals = db.query(Deal).filter(Deal.created_at >= prev_month_start, Deal.created_at < curr_month_start).all()
     curr_deals = db.query(Deal).filter(Deal.created_at >= curr_month_start).all()
     
-    prev_won = sum(1 for d in prev_deals if d.status == "won")
-    curr_won = sum(1 for d in curr_deals if d.status == "won")
+    prev_won = sum(1 for d in prev_deals if (d.status or "").lower() == "won")
+    curr_won = sum(1 for d in curr_deals if (d.status or "").lower() == "won")
     
-    prev_win_rate = (prev_won / len(prev_deals)) * 100 if len(prev_deals) > 0 else 0.0
-    curr_win_rate = (curr_won / len(curr_deals)) * 100 if len(curr_deals) > 0 else 0.0
+    prev_win_rate = (prev_won / len(prev_deals)) * 100.0 if len(prev_deals) > 0 else 0.0
+    curr_win_rate = (curr_won / len(curr_deals)) * 100.0 if len(curr_deals) > 0 else 0.0
     mom_win_rate = curr_win_rate - prev_win_rate
     
-    prev_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400 for d in prev_deals if d.status == "won" and d.updated_at]
-    curr_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400 for d in curr_deals if d.status == "won" and d.updated_at]
+    prev_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400.0 for d in prev_deals if (d.status or "").lower() == "won" and d.updated_at]
+    curr_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400.0 for d in curr_deals if (d.status or "").lower() == "won" and d.updated_at]
     
     prev_cycle_time = sum(prev_cycle_ages) / len(prev_cycle_ages) if prev_cycle_ages else 0.0
     curr_cycle_time = sum(curr_cycle_ages) / len(curr_cycle_ages) if curr_cycle_ages else 0.0
     mom_cycle_time = curr_cycle_time - prev_cycle_time
     
-    # Overriding overview with MoM
-    overview.mom_revenue = mom_revenue
-    overview.mom_win_rate = mom_win_rate
-    overview.mom_cycle_time = mom_cycle_time
-    overview.mom_discount = mom_discount
+    overview.mom_revenue = float(mom_revenue)
+    overview.mom_win_rate = float(mom_win_rate)
+    overview.mom_cycle_time = float(mom_cycle_time)
+    overview.mom_discount = float(mom_discount)
     
     return AnalyticsDashboard(
         overview=overview,

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional, Dict, Any
 
 from src.core.database import get_db
@@ -177,11 +177,14 @@ def update_product_stock(
 # --- ORDERS & FULFILLMENT ---
 @router.get("/orders", response_model=List[OrderResponse])
 def get_pending_orders(db: Session = Depends(get_db)):
-    orders = db.query(Order).all()
+    orders = db.query(Order)\
+        .options(joinedload(Order.quotation).joinedload(Quotation.deal).joinedload(Deal.customer))\
+        .order_by(Order.created_at.desc())\
+        .all()
     resp = []
     for order in orders:
-        quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
-        deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+        quote = order.quotation
+        deal = quote.deal if quote else None
         cust_name = deal.customer_name if (deal and hasattr(deal, 'customer_name') and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Unknown")
         
         resp.append(OrderResponse(
@@ -434,27 +437,40 @@ def process_fulfillment(order_id: str, payload: FulfillmentRequest, db: Session 
 
 @router.get("/backorders", response_model=List[BackorderResponse])
 def get_backorders(db: Session = Depends(get_db)):
-    backorders = db.query(Backorder).filter(Backorder.status != "FULFILLED").all()
-    resp = []
+    backorders = db.query(Backorder)\
+        .options(
+            joinedload(Backorder.order).joinedload(Order.quotation).joinedload(Quotation.deal).joinedload(Deal.customer),
+            joinedload(Backorder.product)
+        )\
+        .filter(Backorder.status != "FULFILLED")\
+        .all()
     
+    all_stocks = db.query(Stock).options(joinedload(Stock.warehouse)).all()
+    stock_by_product: Dict[str, List[Stock]] = {}
+    for s in all_stocks:
+        stock_by_product.setdefault(s.product_id, []).append(s)
+        
+    all_quote_lines = db.query(QuoteLine).all()
+    quote_line_map: Dict[tuple, QuoteLine] = {(ql.quotation_id, ql.product_id): ql for ql in all_quote_lines}
+
+    resp = []
     for b in backorders:
-        order = db.query(Order).filter(Order.id == b.order_id).first()
-        product = db.query(Product).filter(Product.id == b.product_id).first()
-        quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first() if order else None
-        deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+        order = b.order
+        product = b.product
+        quote = order.quotation if order else None
+        deal = quote.deal if quote else None
         
         cust_name = "Unknown"
         if deal:
             if hasattr(deal, 'customer_name') and deal.customer_name:
                 cust_name = deal.customer_name
             elif hasattr(deal, 'customer') and deal.customer:
-                cust_name = deal.customer.name
+                cust_name = getattr(deal.customer, 'name', getattr(deal.customer, 'company', 'Unknown'))
                 
-        # Get warehouse stock info for this product
-        stocks = db.query(Stock).filter(Stock.product_id == b.product_id).all()
+        stocks = stock_by_product.get(b.product_id, [])
         wh_stock_list = []
         for s in stocks:
-            wh = db.query(Warehouse).filter(Warehouse.id == s.warehouse_id).first()
+            wh = s.warehouse
             if wh:
                 wh_stock_list.append(WarehouseStockResponse(
                     name=wh.name,
@@ -462,21 +478,18 @@ def get_backorders(db: Session = Depends(get_db)):
                     available=max(0, s.quantity_on_hand - s.quantity_allocated)
                 ))
         
-        # Calculate value at risk
         val = 0.0
         if product:
-            val = float(product.sales_price) * b.quantity
+            val = float(product.sales_price or 0.0) * b.quantity
             
-        # Shipped vs Pending
-        # For simplicity, ordered = shipped + pending. We assume pending = b.quantity
         pending = b.quantity
-        ordered = pending # if we wanted real ordered, we'd look at quote line. Let's simplify
+        ordered = pending
         shipped = 0
         
-        quote_line = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id, QuoteLine.product_id == b.product_id).first() if quote else None
+        quote_line = quote_line_map.get((quote.id, b.product_id)) if quote else None
         if quote_line:
             ordered = quote_line.quantity
-            shipped = ordered - pending
+            shipped = max(0, ordered - pending)
 
         resp.append(BackorderResponse(
             id=b.id,

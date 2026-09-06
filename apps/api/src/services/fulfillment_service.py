@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation, Backorder
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
@@ -18,18 +18,25 @@ def generate_fulfillment_plans(db: Session, order_id: str) -> Dict[str, Any]:
     if not order:
         return {"order_id": order_id, "plans": []}
 
-    quotation = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
+    quotation = db.query(Quotation)\
+        .options(joinedload(Quotation.lines).joinedload(QuoteLine.product))\
+        .filter(Quotation.id == order.quotation_id)\
+        .first()
     if not quotation:
         return {"order_id": order_id, "plans": []}
 
-    warehouses = db.query(Warehouse).all()
+    warehouses = db.query(Warehouse).filter(Warehouse.is_active == True).all()
     shipping_options = shipping_service.get_shipping_rates()
+
+    # Pre-fetch all stocks into a memory lookup map (product_id, warehouse_id) -> Stock
+    all_stocks = db.query(Stock).all()
+    stock_map = {(s.product_id, s.warehouse_id): s for s in all_stocks}
 
     # Calculate total revenue and product cost
     total_revenue = float(quotation.total) if quotation.total is not None else 0.0
     total_product_cost = 0.0
     for line in quotation.lines:
-        p = db.query(Product).filter(Product.id == line.product_id).first()
+        p = line.product
         if p and p.cost is not None:
             total_product_cost += float(line.quantity) * float(p.cost)
 
@@ -40,7 +47,7 @@ def generate_fulfillment_plans(db: Session, order_id: str) -> Dict[str, Any]:
         plan_allocations = []
         possible = True
         for line in quotation.lines:
-            stock = db.query(Stock).filter(Stock.product_id == line.product_id, Stock.warehouse_id == wh.id).first()
+            stock = stock_map.get((line.product_id, wh.id))
             avail = (stock.quantity_on_hand - stock.quantity_allocated) if stock else 0
             if avail >= line.quantity:
                 plan_allocations.append({
@@ -83,7 +90,7 @@ def generate_fulfillment_plans(db: Session, order_id: str) -> Dict[str, Any]:
         needed = line.quantity
         allocated_qty = 0
         for wh in warehouses:
-            stock = db.query(Stock).filter(Stock.product_id == line.product_id, Stock.warehouse_id == wh.id).first()
+            stock = stock_map.get((line.product_id, wh.id))
             avail = (stock.quantity_on_hand - stock.quantity_allocated) if stock else 0
             if avail > 0:
                 take = min(needed - allocated_qty, avail)
@@ -118,7 +125,7 @@ def generate_fulfillment_plans(db: Session, order_id: str) -> Dict[str, Any]:
         "name": "Multi-Warehouse Split Allocation",
         "tag": "Lowest Cost" if len(plans) > 0 else "Recommended",
         "num_shipments": shipment_count,
-        "warehouses_used": used_wh_names,
+        "warehouses_used": used_wh_names if used_wh_names else ["Default Hub"],
         "shipping_cost": round(split_shipping_cost, 2),
         "product_cost": round(total_product_cost, 2),
         "total_order_cost": round(total_product_cost + split_shipping_cost, 2),

@@ -20,10 +20,10 @@ class AnalyticsOverview(BaseModel):
     avg_cycle_time_days: float
     avg_discount: float
     active_deals: int
-    mom_revenue: float
-    mom_win_rate: float
-    mom_cycle_time: float
-    mom_discount: float
+    mom_revenue: float = 0.0
+    mom_win_rate: float = 0.0
+    mom_cycle_time: float = 0.0
+    mom_discount: float = 0.0
 
 class TrendPoint(BaseModel):
     label: str
@@ -40,10 +40,12 @@ def as_utc(value: datetime) -> datetime:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
 
+@router.get("", response_model=AnalyticsDashboard)
 @router.get("/", response_model=AnalyticsDashboard)
 def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(ANALYTICS_ROLES))):
     # Total revenue (sum of paid invoices)
-    total_rev = db.query(func.sum(Invoice.amount_paid)).scalar() or Decimal('0.0')
+    total_rev_val = db.query(func.sum(Invoice.amount_paid)).scalar()
+    total_rev = Decimal(str(total_rev_val)) if total_rev_val is not None else Decimal('0.0')
     
     # Win rate
     total_deals = db.query(Deal).count()
@@ -98,15 +100,15 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
             quote for quote in quotations
             if quote.created_at and month_start <= as_utc(quote.created_at) < next_month
         ]
-        month_subtotal = sum((quote.subtotal or Decimal("0")) for quote in month_quotes)
-        month_discount = sum((quote.total_discount or Decimal("0")) for quote in month_quotes)
+        month_subtotal = float(sum(float(quote.subtotal or 0.0) for quote in month_quotes))
+        month_discount = float(sum(float(quote.total_discount or 0.0) for quote in month_quotes))
         revenue_trend.append(TrendPoint(
             label=month_start.strftime("%b"),
-            value=float(sum((invoice.amount_paid or Decimal("0")) for invoice in month_invoices)),
+            value=float(sum(float(invoice.amount_paid or 0.0) for invoice in month_invoices)),
         ))
         discount_trend.append(TrendPoint(
             label=month_start.strftime("%b"),
-            value=float((month_discount / month_subtotal) * 100) if month_subtotal else 0.0,
+            value=float((month_discount / month_subtotal) * 100) if month_subtotal > 0 else 0.0,
         ))
 
     mom_revenue = 0.0

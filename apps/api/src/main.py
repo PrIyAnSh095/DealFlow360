@@ -19,15 +19,18 @@ from src.api.v1 import (
     subscriptions,
     invoices,
     health_intelligence,
+    negotiations,
 )
 from src.core.database import engine, Base
 import src.models
 
-# Auto-create tables for local development/testing
-Base.metadata.create_all(bind=engine)
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-create tables for local development/testing
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
     yield
 
 app = FastAPI(
@@ -39,7 +42,13 @@ app = FastAPI(
 # CORS config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:[0-9]+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,6 +72,7 @@ app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["in
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+app.include_router(negotiations.router, prefix="/api/v1/negotiations", tags=["negotiations"])
 
 @app.get("/health")
 def health_check():

@@ -16,6 +16,7 @@ export const useApproveRequest = () => {
       approvalsApi.approve(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
     },
   });
 };
@@ -27,6 +28,7 @@ export const useRejectRequest = () => {
       approvalsApi.reject(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
     },
   });
 };

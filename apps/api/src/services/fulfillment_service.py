@@ -165,6 +165,15 @@ def apply_fulfillment_plan(db: Session, order_id: str, plan_data: Dict[str, Any]
         )
         db.add(fa)
         created_allocations.append(fa)
+        
+        from src.models.audit import AuditLog
+        db.add(AuditLog(
+            actor_id=str(user_id),
+            action="STOCK_ALLOCATED",
+            entity_type="STOCK",
+            entity_id=f"{alloc['warehouse_id']}:{alloc['product_id']}",
+            details={"quantity": alloc["quantity"], "order_id": order_id}
+        ))
 
     created_backorders = []
     for bo in backorders:

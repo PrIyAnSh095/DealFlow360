@@ -7,6 +7,7 @@ from src.models.user import User
 from src.models.deal import Deal
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
+from src.models.admin import GlobalSetting
 from decimal import Decimal
 
 router = APIRouter()
@@ -68,38 +69,64 @@ def get_deal_rescue(
         )
         
     if quotation.margin_percentage is not None and quotation.margin_percentage < Decimal('20.0'):
-        # Propose adding a $1200 service with 80% margin
-        service_rev = Decimal('1200.00')
-        service_cost = Decimal('240.00')
-        old_cost = total_revenue - (total_revenue * old_margin / Decimal('100.0'))
-        new_rev = total_revenue + service_rev
-        new_cost = old_cost + service_cost
-        new_margin_calc = ((new_rev - new_cost) / new_rev) * Decimal('100.0') if new_rev > 0 else Decimal('0.0')
-        margin_impact = new_margin_calc - old_margin
-        
-        recommendations.append(
-            DealRescueRecommendation(
-                id="rec-2",
-                title="Include High-Margin Setup Service",
-                description="Adding standard setup service improves blended margin above the 20% warning threshold.",
-                impact_revenue=f"+₹{service_rev:,.2f}",
-                impact_margin=f"+{margin_impact:,.1f}%",
-                impact_risk="Unchanged",
-                action_type="cross_sell"
+        # Read upsell service price from database GlobalSetting — never hardcoded.
+        # If admin has not configured upsell_service_price, rec-2 is silently omitted.
+        price_setting = db.query(GlobalSetting).filter(GlobalSetting.key == "upsell_service_price").first()
+        cost_setting = db.query(GlobalSetting).filter(GlobalSetting.key == "upsell_service_cost").first()
+
+        if price_setting and cost_setting:
+            try:
+                service_rev = Decimal(str(price_setting.value))
+                service_cost = Decimal(str(cost_setting.value))
+            except Exception:
+                service_rev = None
+                service_cost = None
+        else:
+            service_rev = None
+            service_cost = None
+
+        if service_rev is not None and service_cost is not None:
+            old_cost = total_revenue - (total_revenue * old_margin / Decimal('100.0'))
+            new_rev = total_revenue + service_rev
+            new_cost = old_cost + service_cost
+            new_margin_calc = ((new_rev - new_cost) / new_rev) * Decimal('100.0') if new_rev > 0 else Decimal('0.0')
+            margin_impact = new_margin_calc - old_margin
+
+            recommendations.append(
+                DealRescueRecommendation(
+                    id="rec-2",
+                    title="Include High-Margin Setup Service",
+                    description="Adding standard setup service improves blended margin above the 20% warning threshold.",
+                    impact_revenue=f"+₹{service_rev:,.2f}",
+                    impact_margin=f"+{margin_impact:,.1f}%",
+                    impact_risk="Unchanged",
+                    action_type="cross_sell"
+                )
             )
-        )
+
         
     if not recommendations and quotation.status == "approval":
-        recommendations.append(
-            DealRescueRecommendation(
-                id="rec-3",
-                title="Expedite Fulfillment Option",
-                description="Offer priority shipping to secure deal confirmation faster while awaiting approval.",
-                impact_revenue="+₹0.00",
-                impact_margin="-0.5%",
-                impact_risk="Improves closing probability",
-                action_type="fulfillment_change"
+        shipping_setting = db.query(GlobalSetting).filter(GlobalSetting.key == "express_shipping_cost").first()
+        if shipping_setting:
+            try:
+                exp_cost = Decimal(str(shipping_setting.value))
+            except Exception:
+                exp_cost = Decimal('0.00')
+        else:
+            exp_cost = Decimal('0.00')
+
+        if exp_cost > Decimal('0.00') and total_revenue > Decimal('0.00'):
+            margin_reduction = (exp_cost / total_revenue) * Decimal('100.0')
+            recommendations.append(
+                DealRescueRecommendation(
+                    id="rec-3",
+                    title="Expedite Fulfillment Option",
+                    description="Offer priority shipping to secure deal confirmation faster while awaiting approval.",
+                    impact_revenue=f"+₹{exp_cost:,.2f}",
+                    impact_margin=f"-{margin_reduction:,.1f}%",
+                    impact_risk="Improves closing probability",
+                    action_type="fulfillment_change"
+                )
             )
-        )
         
     return recommendations

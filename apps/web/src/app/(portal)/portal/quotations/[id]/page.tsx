@@ -15,18 +15,13 @@ import {
   Send,
   Check,
   Info,
+  Download,
 } from "lucide-react";
 import { portalApi } from "@/features/portal/api";
+import { quotationsApi } from "@/features/quotations/api";
 import { PublicQuotationResponse, QuoteMessage } from "@/features/portal/types";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
-
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING_APPROVAL: "bg-warning/10 text-warning border-warning/20",
@@ -38,6 +33,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function QuotationDetailPage() {
+  const orgConfig = useOrgConfig();
   const params = useParams();
   const quotationId = params?.id as string;
 
@@ -146,22 +142,22 @@ export default function QuotationDetailPage() {
               create an order for:
             </p>
             <div className="bg-muted/50 rounded-lg p-4 mb-5">
-              <div className="flex justify-between text-[13px] mb-1">
+              <div className="flex justify-between text-[13px]">
                 <span className="text-foreground-muted">Subtotal</span>
                 <span className="font-medium text-foreground">
-                  {formatINR(quotation.subtotal)}
+                  {formatCurrency(quotation.subtotal, orgConfig)}
                 </span>
               </div>
-              <div className="flex justify-between text-[13px] mb-1">
+              <div className="flex justify-between text-[13px]">
                 <span className="text-foreground-muted">Total Discount</span>
                 <span className="font-medium text-success">
-                  − {formatINR(quotation.total_discount)}
+                  − {formatCurrency(quotation.total_discount, orgConfig)}
                 </span>
               </div>
               <div className="flex justify-between text-[14px] font-bold border-t border-border pt-2 mt-2">
                 <span className="text-foreground">Grand Total</span>
                 <span className="text-foreground">
-                  {formatINR(quotation.total)}
+                  {formatCurrency(quotation.total, orgConfig)}
                 </span>
               </div>
             </div>
@@ -231,6 +227,53 @@ export default function QuotationDetailPage() {
 
           {/* Actions */}
           <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 bg-muted px-2 py-1 rounded-md border border-border text-[12px]">
+              <span className="font-semibold text-foreground-muted">Status:</span>
+              <select
+                value={quotation.status}
+                onChange={async (e) => {
+                  const newStatus = e.target.value;
+                  try {
+                    await quotationsApi.updateQuotationStatus(quotation.id, newStatus);
+                    setQuotation((prev) => prev ? { ...prev, status: newStatus.toUpperCase() } : prev);
+                  } catch (err) {
+                    console.error("Failed to update status", err);
+                  }
+                }}
+                className="bg-background border border-border text-foreground font-semibold px-2 py-0.5 rounded text-[12px] focus:ring-1 focus:ring-primary"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="PENDING_APPROVAL">Pending Approval</option>
+                <option value="APPROVED">Approved</option>
+                <option value="SENT">Sent</option>
+                <option value="NEGOTIATION">Negotiation</option>
+                <option value="ACCEPTED">Accepted</option>
+                <option value="REJECTED">Rejected</option>
+                <option value="CONFIRMED">Confirmed</option>
+              </select>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  const { customerApi } = await import("@/features/customer/api");
+                  const blob = await customerApi.downloadQuotationPdf(quotationId);
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `Quotation_${quotationId.slice(0, 8)}.pdf`;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch (err) {
+                  console.error("Failed to download PDF", err);
+                }
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-border bg-surface text-[13px] font-medium text-foreground hover:bg-muted transition-colors shadow-sm"
+            >
+              <Download className="w-4 h-4 text-primary" />
+              Download PDF
+            </button>
             {canConfirm && (
               <button
                 onClick={() => setConfirmDialogOpen(true)}
@@ -287,7 +330,7 @@ export default function QuotationDetailPage() {
                         {item.quantity}
                       </td>
                       <td className="px-6 py-4 text-right text-foreground-muted">
-                        {formatINR(item.unit_price)}
+                        {formatCurrency(item.unit_price, orgConfig)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         {item.discount_percent > 0 ? (
@@ -302,7 +345,7 @@ export default function QuotationDetailPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="font-bold text-foreground text-[14px]">
-                          {formatINR(item.total_price)}
+                          {formatCurrency(item.total_price, orgConfig)}
                         </span>
                       </td>
                     </tr>
@@ -319,7 +362,7 @@ export default function QuotationDetailPage() {
                 <div className="flex justify-between text-[13px]">
                   <span className="text-foreground-muted">Subtotal</span>
                   <span className="font-medium text-foreground">
-                    {formatINR(quotation.subtotal)}
+                    {formatCurrency(quotation.subtotal, orgConfig)}
                   </span>
                 </div>
                 <div className="flex justify-between text-[13px]">
@@ -327,13 +370,13 @@ export default function QuotationDetailPage() {
                     Total Discount
                   </span>
                   <span className="font-medium text-success">
-                    − {formatINR(quotation.total_discount)}
+                    − {formatCurrency(quotation.total_discount, orgConfig)}
                   </span>
                 </div>
                 <div className="flex justify-between text-[15px] font-bold border-t border-border pt-2 mt-1">
                   <span className="text-foreground">Grand Total</span>
                   <span className="text-foreground">
-                    {formatINR(quotation.total)}
+                    {formatCurrency(quotation.total, orgConfig)}
                   </span>
                 </div>
               </div>

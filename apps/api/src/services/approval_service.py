@@ -76,16 +76,19 @@ def process_approval_decision(
     
     quotation = db.query(Quotation).filter(Quotation.id == app_request.quotation_id).first()
     if quotation:
+        deal = db.query(Deal).filter(Deal.id == quotation.deal_id).first()
         if action_upper == "APPROVED":
             quotation.status = "APPROVED"
-            # Update associated deal status if available
-            deal = db.query(Deal).filter(Deal.id == quotation.deal_id).first()
             if deal:
-                deal.status = "won"
+                deal.status = "negotiation"
         elif action_upper == "REJECTED":
             quotation.status = "REJECTED"
+            if deal:
+                deal.status = "lost"
         elif action_upper == "RETURNED":
             quotation.status = "RETURNED_FOR_REVISION"
+            if deal:
+                deal.status = "draft"
 
     audit_log = ApprovalAuditLog(
         approval_request_id=app_request.id,

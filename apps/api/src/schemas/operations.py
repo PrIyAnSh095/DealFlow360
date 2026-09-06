@@ -5,6 +5,14 @@ from datetime import datetime
 class WarehouseBase(BaseModel):
     name: str
     location: str
+    code: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = "India"
+    capacity: Optional[int] = 10000
+    pincode: Optional[str] = "10001"
+    is_active: Optional[bool] = True
 
 class WarehouseCreate(WarehouseBase):
     pass
@@ -12,12 +20,44 @@ class WarehouseCreate(WarehouseBase):
 class WarehouseUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
+    code: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    capacity: Optional[int] = None
+    pincode: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class WarehouseResponse(WarehouseBase):
     id: str
+    pincode: Optional[str] = "10001"
+    is_active: bool = True
     
     class Config:
         from_attributes = True
+
+class StockItemResponse(BaseModel):
+    id: str
+    product_id: str
+    product_name: str
+    sku: Optional[str] = None
+    warehouse_id: str
+    warehouse_name: str
+    quantity_on_hand: int
+    quantity_allocated: int
+    available_quantity: int
+
+class StockUpdateInput(BaseModel):
+    quantity_on_hand: int
+    reason: Optional[str] = "Manual stock adjustment"
+
+class OrderStatusUpdate(BaseModel):
+    status: Optional[str] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    estimated_delivery: Optional[str] = None
+    delivery_notes: Optional[str] = None
 
 class OrderResponse(BaseModel):
     id: str
@@ -26,6 +66,10 @@ class OrderResponse(BaseModel):
     created_at: datetime
     customer_name: Optional[str] = None
     deal_name: Optional[str] = None
+    tracking_number: Optional[str] = None
+    carrier: Optional[str] = None
+    estimated_delivery: Optional[str] = None
+    delivery_notes: Optional[str] = None
     
     class Config:
         from_attributes = True

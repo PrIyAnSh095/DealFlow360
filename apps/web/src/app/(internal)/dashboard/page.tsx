@@ -15,6 +15,7 @@ import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [selectedPeriod, setSelectedPeriod] = useState("30d");
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [attentionDeals, setAttentionDeals] = useState<Deal[]>([]);
@@ -29,15 +30,15 @@ export default function DashboardPage() {
     const loadDashboard = async () => {
       try {
         const [metricsData, activitiesData, dealsData] = await Promise.all([
-          dashboardApi.getMetrics(),
-          dashboardApi.getActivities(),
-          dealsApi.getDeals()
+          dashboardApi.getMetrics(selectedPeriod).catch(() => null),
+          dashboardApi.getActivities().catch(() => []),
+          dealsApi.getDeals().catch(() => [])
         ]);
 
         if (!isActive) return;
         setMetrics(metricsData);
-        setActivities(activitiesData);
-        const attention = dealsData.filter(d => d.risk === 'high' || d.status === 'approval').slice(0, 5);
+        setActivities(activitiesData || []);
+        const attention = (dealsData || []).filter(d => d.risk === 'high' || d.status === 'approval').slice(0, 5);
         setAttentionDeals(attention);
       } catch (err) {
         if (isActive) console.error("Failed to load dashboard data", err);
@@ -53,7 +54,7 @@ export default function DashboardPage() {
       isActive = false;
       window.clearInterval(refreshTimer);
     };
-  }, []);
+  }, [selectedPeriod]);
 
   if (isLoading) {
     return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading dashboard...</div>;
@@ -88,13 +89,17 @@ export default function DashboardPage() {
               className="w-full pl-9 pr-4 py-1.5 bg-surface border border-border rounded-md text-[13px] focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
             />
           </div>
-          <button 
-            onClick={() => toast.info("Filter functionality coming soon!")}
-            className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-muted transition-colors"
+          <select
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
+            className="flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-[13px] font-medium text-foreground hover:bg-muted focus:outline-none transition-colors cursor-pointer"
           >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-          </button>
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="365d">Last Year</option>
+            <option value="all">All Time</option>
+          </select>
           {canCreate && (
             <button 
               onClick={() => setIsCreateModalOpen(true)}

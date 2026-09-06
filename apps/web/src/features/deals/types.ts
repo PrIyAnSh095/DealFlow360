@@ -27,3 +27,18 @@ export interface Deal {
   created_at: string;
   updated_at: string;
 }
+
+export interface NegotiationItem {
+  id: string;
+  quotation_id: string;
+  deal_id: string;
+  customer_name: string;
+  deal_name: string;
+  content: string;
+  status: string;
+  sender_type: string;
+  counter_discount_pct?: number;
+  quote_total: number;
+  quote_margin: number;
+  created_at: string;
+}

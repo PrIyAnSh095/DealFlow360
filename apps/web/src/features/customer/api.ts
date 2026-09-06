@@ -47,5 +47,12 @@ export const customerApi = {
   
   cancelSubscription: async (subId: string): Promise<void> => {
     await apiClient.post(`/customers/me/subscriptions/${subId}/cancel`);
+  },
+
+  downloadQuotationPdf: async (quotationId: string): Promise<Blob> => {
+    const response = await apiClient.get(`/customers/me/quotations/${quotationId}/pdf`, {
+      responseType: 'blob'
+    });
+    return response.data;
   }
 };

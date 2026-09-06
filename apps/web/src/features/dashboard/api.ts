@@ -2,8 +2,10 @@ import { apiClient } from '@/lib/api-client';
 import { DashboardMetrics, ActivityLog } from './types';
 
 export const dashboardApi = {
-  getMetrics: async (): Promise<DashboardMetrics> => {
-    const response = await apiClient.get<DashboardMetrics>('/dashboard/metrics');
+  getMetrics: async (period?: string): Promise<DashboardMetrics> => {
+    const response = await apiClient.get<DashboardMetrics>('/dashboard/metrics', {
+      params: period ? { period } : undefined
+    });
     return response.data;
   },
   

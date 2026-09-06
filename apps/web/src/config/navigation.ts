@@ -16,16 +16,17 @@ import {
   Users,
   History,
   Tag,
-  ShieldCheck,
-  Link2,
-  Award
+  Award,
+  GitFork,
+  Clock
 } from "lucide-react";
 import type { UserRole } from "@/features/auth/types";
 
 const INTERNAL_ROLES: UserRole[] = ["sales_rep", "sales_manager", "finance", "admin"];
 const APPROVAL_ROLES: UserRole[] = ["sales_rep", "sales_manager", "finance", "admin"];
 const ANALYTICS_ROLES: UserRole[] = ["sales_manager", "finance", "admin"];
-const AUDIT_ROLES: UserRole[] = ["sales_manager", "finance", "admin"];
+const OPERATIONS_ROLES: UserRole[] = ["sales_manager", "finance", "admin"];
+const AUDIT_ROLES: UserRole[] = ["admin"];
 
 export const navigation = [
   {
@@ -45,7 +46,10 @@ export const navigation = [
   {
     name: "Operations",
     items: [
-      { name: "Fulfillment", href: "/operations", icon: Package, roles: ["finance", "admin"] },
+      { name: "Fulfillment", href: "/operations", icon: Package, roles: OPERATIONS_ROLES },
+      { name: "Warehouse Split", href: "/finance/warehouse-split", icon: GitFork, roles: OPERATIONS_ROLES },
+      { name: "Backorders", href: "/finance/backorders", icon: Clock, roles: OPERATIONS_ROLES },
+      { name: "Warehouses", href: "/warehouses", icon: Warehouse, roles: OPERATIONS_ROLES },
       { name: "Subscriptions", href: "/subscriptions", icon: RefreshCcw, roles: ["finance", "admin"] },
       { name: "Invoices", href: "/invoices", icon: Receipt, roles: ["finance", "admin"] },
     ],
@@ -65,7 +69,6 @@ export const navigation = [
       { name: "Categories", href: "/categories", icon: Tag, roles: ["admin"] },
       { name: "Customer Tiers", href: "/customer-tiers", icon: Award, roles: ["admin"] },
       { name: "Discount Policies", href: "/discount-policies", icon: Settings2, roles: ["admin"] },
-      { name: "Warehouses", href: "/warehouses", icon: Warehouse, roles: ["finance", "admin"] },
       { name: "Subscription Plans", href: "/subscription-plans", icon: CreditCard, roles: ["admin"] },
       { name: "Audit Logs", href: "/audit-logs", icon: History, roles: AUDIT_ROLES },
       { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] },

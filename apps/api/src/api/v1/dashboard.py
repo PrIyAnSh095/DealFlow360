@@ -38,12 +38,33 @@ class ActivityLog(BaseModel):
 
 @router.get("/metrics", response_model=DashboardMetrics)
 def get_dashboard_metrics(
+    period: Optional[str] = "30d",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Base query for deals (assuming all deals for now, could be filtered by owner)
-    deals = db.query(Deal).all()
-    
+    days_map = {
+        "7d": 7,
+        "30d": 30,
+        "90d": 90,
+        "365d": 365,
+    }
+    days = days_map.get(period, 30) if period != "all" else None
+    now = datetime.now()
+
+    if period == "all" or days is None:
+        deals = db.query(Deal).all()
+        current_period_deals = deals
+        previous_period_deals = []
+    else:
+        period_start = now - timedelta(days=days)
+        prev_period_start = now - timedelta(days=days * 2)
+        deals = db.query(Deal).filter(Deal.created_at >= period_start).all()
+        current_period_deals = deals
+        previous_period_deals = db.query(Deal).filter(
+            Deal.created_at >= prev_period_start,
+            Deal.created_at < period_start
+        ).all()
+
     revenue_pipeline = Decimal('0.0')
     deals_at_risk = 0
     pending_approvals = 0
@@ -62,12 +83,6 @@ def get_dashboard_metrics(
             pending_approvals += 1
             pending_approval_value += deal.value
             
-    thirty_days_ago = datetime.now() - timedelta(days=30)
-    sixty_days_ago = datetime.now() - timedelta(days=60)
-    
-    current_period_deals = db.query(Deal).filter(Deal.created_at >= thirty_days_ago).all()
-    previous_period_deals = db.query(Deal).filter(Deal.created_at >= sixty_days_ago, Deal.created_at < thirty_days_ago).all()
-    
     current_revenue = sum([d.value for d in current_period_deals if d.status not in ["completed", "lost"]])
     prev_revenue = sum([d.value for d in previous_period_deals if d.status not in ["completed", "lost"]])
     

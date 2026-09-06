@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuotationLineItem, NegotiationRequestType } from "@/features/customer/types";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 
 interface NegotiationModalProps {
   lineItem: QuotationLineItem;
@@ -67,19 +68,12 @@ const REQUEST_TYPES: {
   },
 ];
 
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 export function NegotiationModal({
   lineItem,
   onClose,
   onSubmit,
 }: NegotiationModalProps) {
+  const orgConfig = useOrgConfig();
   const [step, setStep] = useState<"select" | "details">("select");
   const [selectedType, setSelectedType] = useState<NegotiationRequestType | null>(null);
   const [requestedPrice, setRequestedPrice] = useState(lineItem.finalPrice);
@@ -185,7 +179,7 @@ export function NegotiationModal({
               <p className="text-[12px] text-foreground-muted mt-0.5">
                 Current price:{" "}
                 <span className="font-semibold text-foreground">
-                  {formatINR(lineItem.finalPrice)}
+                  {formatCurrency(lineItem.finalPrice, orgConfig)}
                   {lineItem.isRecurring ? "/mo" : ""}
                 </span>{" "}
                 · Qty:{" "}
@@ -250,7 +244,7 @@ export function NegotiationModal({
                       Your requested price (per unit)
                     </label>
                     <span className="text-[12px] text-foreground-muted">
-                      Current: {formatINR(lineItem.finalPrice)}
+                      Current: {formatCurrency(lineItem.finalPrice, orgConfig)}
                     </span>
                   </div>
 
@@ -280,11 +274,11 @@ export function NegotiationModal({
                   </div>
 
                   <div className="flex justify-between text-[11px] text-foreground-muted mb-4">
-                    <span>{formatINR(priceMin)}</span>
+                    <span>{formatCurrency(priceMin, orgConfig)}</span>
                     <span className="font-bold text-[14px] text-primary">
-                      {formatINR(requestedPrice)}
+                      {formatCurrency(requestedPrice, orgConfig)}
                     </span>
-                    <span>{formatINR(priceMax)}</span>
+                    <span>{formatCurrency(priceMax, orgConfig)}</span>
                   </div>
 
                   {/* Direct input */}
@@ -312,7 +306,7 @@ export function NegotiationModal({
                       <Tag className="w-4 h-4 text-success shrink-0" />
                       <p className="text-[12px] text-success font-medium">
                         You're requesting{" "}
-                        <strong>{formatINR(savings)}</strong> in savings across{" "}
+                        <strong>{formatCurrency(savings, orgConfig)}</strong> in savings across{" "}
                         {lineItem.qty} units (
                         {(((lineItem.finalPrice - requestedPrice) / lineItem.finalPrice) * 100).toFixed(1)}% off current price)
                       </p>
@@ -433,9 +427,10 @@ export function NegotiationModal({
                       <p className="text-[12px] text-success font-medium">
                         New price after requested discount:{" "}
                         <strong>
-                          {formatINR(
+                          {formatCurrency(
                             lineItem.unitPrice *
-                              (1 - requestedDiscount / 100)
+                              (1 - requestedDiscount / 100),
+                            orgConfig
                           )}
                         </strong>{" "}
                         per unit

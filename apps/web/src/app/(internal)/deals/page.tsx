@@ -5,6 +5,7 @@ import { useDeals } from "@/features/deals/hooks";
 import { KanbanBoard } from "@/features/deals/components/kanban-board";
 import { DealList } from "@/features/deals/components/deal-list";
 import { CreateDealDialog } from "@/features/deals/components/create-deal-dialog";
+import { NegotiationsInbox } from "@/features/deals/components/negotiations-inbox";
 import { LayoutGrid, List, Plus, Search, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth-context";
@@ -112,6 +113,8 @@ export default function DealsPage() {
           )}
         </div>
       </div>
+
+      <NegotiationsInbox />
 
       <div className="flex-1 min-h-0">
         {isLoading ? (

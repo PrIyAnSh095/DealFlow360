@@ -30,7 +30,7 @@ class InvoiceLineResponse(BaseModel):
 
 class InvoiceResponse(BaseModel):
     id: str
-    order_id: str
+    order_id: Optional[str] = None
     customer_id: str
     customer_name: Optional[str] = None
     status: str

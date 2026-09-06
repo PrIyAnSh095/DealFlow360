@@ -208,10 +208,10 @@ def submit_quote(
             deal.status = "approval"
         
         audit = ApprovalAuditLog(
-            deal_id=deal.id if deal else q.deal_id,
-            action="submit",
-            role=user_role,
-            notes="Submitted for approval by Sales Rep"
+            approval_request_id=getattr(app_req, "id", None),
+            actor_id=user_id,
+            action="SUBMITTED",
+            reason="Submitted for approval by Sales Rep"
         )
         db.add(audit)
         db.commit()
@@ -259,3 +259,82 @@ def get_quotation_ai_explanation(
     )
 
     return explanation
+
+class QuotationStatusUpdate(BaseModel):
+    status: str
+    notes: Optional[str] = None
+
+@router.patch("/{quotation_id}/status")
+def update_quotation_status(
+    quotation_id: str,
+    update_data: QuotationStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Allows sales reps and internal users to update quotation status directly in database."""
+    q = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+        
+    old_status = q.status
+    q.status = update_data.status.upper()
+    if hasattr(q, "status_notes") and update_data.notes:
+        q.status_notes = update_data.notes
+        
+    deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
+    if deal:
+        if update_data.status.upper() in ["ACCEPTED", "APPROVED", "CONFIRMED"]:
+            deal.status = "closed_won"
+        elif update_data.status.upper() in ["REJECTED", "EXPIRED", "CANCELLED"]:
+            deal.status = "closed_lost"
+        elif update_data.status.upper() in ["NEGOTIATION", "SENT"]:
+            deal.status = "negotiation"
+
+    db.commit()
+    db.refresh(q)
+
+    user_id = current_user.get("sub", "system") if isinstance(current_user, dict) else getattr(current_user, "id", "system")
+    log_audit_event(
+        db,
+        user_id=user_id,
+        action="QUOTATION_STATUS_UPDATED",
+        entity_type="Quotation",
+        entity_id=quotation_id,
+        details=f"Status updated from {old_status} to {q.status}"
+    )
+
+    return {
+        "id": q.id,
+        "status": q.status,
+        "message": f"Quotation status updated to {q.status}"
+    }
+
+from fastapi import Response
+from src.models.customer import Customer
+from src.models.organization import OrganizationProfile
+from src.services.pdf_service import generate_quotation_pdf
+
+@router.get("/{quotation_id}/pdf")
+def download_quotation_pdf(
+    quotation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    quote = db.query(Quotation).filter(Quotation.id == quotation_id).first()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Quotation not found.")
+
+    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
+    customer = db.query(Customer).filter(Customer.id == deal.customer_id).first() if (deal and deal.customer_id) else None
+
+    org_profile = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    quote_lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id).all()
+
+    pdf_bytes = generate_quotation_pdf(quote, customer, org_profile, quote_lines)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=Quotation_{quote.id[:8]}.pdf"
+        }
+    )

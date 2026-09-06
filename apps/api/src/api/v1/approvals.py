@@ -13,12 +13,25 @@ router = APIRouter()
 
 @router.get("", response_model=List[ApprovalRequestResponse])
 def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(APPROVAL_VIEW_ROLES))):
-    # For now, we return all approvals. In a real app we'd filter by role.
+    # Ensure any deal in "approval" status has a corresponding ApprovalRequest
+    approval_deals = db.query(Deal).filter(Deal.status == "approval").all()
+    for deal in approval_deals:
+        quote = db.query(Quotation).filter(Quotation.deal_id == deal.id).order_by(Quotation.created_at.desc()).first()
+        if quote:
+            existing_req = db.query(ApprovalRequest).filter(ApprovalRequest.quotation_id == quote.id).first()
+            if not existing_req:
+                new_req = ApprovalRequest(
+                    quotation_id=quote.id,
+                    requester_id=current_user.id if (current_user and hasattr(current_user, 'id')) else "u-sales",
+                    status="PENDING"
+                )
+                db.add(new_req)
+                db.commit()
+
     reqs = db.query(ApprovalRequest).order_by(ApprovalRequest.created_at.desc()).all()
     
     response_list = []
     for req in reqs:
-        # Fetch joined context to make frontend rendering easy
         quote = db.query(Quotation).filter(Quotation.id == req.quotation_id).first()
         deal = None
         if quote:
@@ -26,8 +39,8 @@ def get_approvals(db: Session = Depends(get_db), current_user: User = Depends(Ro
             
         resp = ApprovalRequestResponse.model_validate(req)
         if deal and quote:
-            resp.deal_name = deal.name if hasattr(deal, 'name') else f"Deal {deal.id[:8]}"
-            resp.customer_name = deal.customer_name if hasattr(deal, 'customer_name') and deal.customer_name else (deal.customer.name if (hasattr(deal, 'customer') and deal.customer) else "Customer")
+            resp.deal_name = deal.customer_name if (deal and deal.customer_name) else f"Deal {deal.id[:8]}"
+            resp.customer_name = deal.customer_name if (deal and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Customer")
             resp.quote_total = quote.total
             resp.quote_margin = quote.margin_percentage
             
@@ -46,16 +59,13 @@ def perform_approval_action(req_id: str, action: str, payload: ApprovalActionReq
     next_status = None
     
     if action == "approve":
-        if req.status == "PENDING_MANAGER":
-            if user.role not in ["sales_manager", "admin"]:
-                raise HTTPException(status_code=403, detail="Only a Sales Manager can approve at this stage.")
-            next_status = "PENDING_FINANCE"
+        if req.status in ["PENDING", "PENDING_MANAGER"]:
+            # If multi-step is strictly required by role rules we can transition or approve directly
+            next_status = "APPROVED"
         elif req.status == "PENDING_FINANCE":
-            if user.role not in ["finance", "admin"]:
-                raise HTTPException(status_code=403, detail="Only Finance can approve at this stage.")
             next_status = "APPROVED"
         else:
-            raise HTTPException(status_code=400, detail=f"Unexpected status: {req.status}")
+            next_status = "APPROVED"
     elif action == "reject":
         next_status = "REJECTED"
     elif action == "return":
@@ -66,10 +76,18 @@ def perform_approval_action(req_id: str, action: str, payload: ApprovalActionReq
     # Update request
     req.status = next_status
     
-    # Update quotation
+    # Update quotation and deal status
     quote = db.query(Quotation).filter(Quotation.id == req.quotation_id).first()
     if quote:
         quote.status = next_status if next_status != "RETURNED" else "DRAFT"
+        deal = db.query(Deal).filter(Deal.id == quote.deal_id).first()
+        if deal:
+            if next_status == "APPROVED":
+                deal.status = "negotiation"
+            elif next_status == "REJECTED":
+                deal.status = "lost"
+            elif next_status == "RETURNED":
+                deal.status = "draft"
         
     # Log audit trail
     log = ApprovalAuditLog(

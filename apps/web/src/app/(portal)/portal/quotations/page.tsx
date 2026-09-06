@@ -3,16 +3,9 @@
 import Link from "next/link";
 import { FileText, Search, Filter, ChevronRight, Clock, MessageSquareDiff } from "lucide-react";
 import { customerApi, CustomerQuotation } from "@/features/customer/api";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
-
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING_APPROVAL: "bg-warning/10 text-warning border-warning/20",
@@ -24,13 +17,21 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function MyQuotationsPage() {
+  const orgConfig = useOrgConfig();
   const [quotations, setQuotations] = useState<CustomerQuotation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    customerApi.getQuotations().then(setQuotations).finally(() => setIsLoading(false));
+    customerApi
+      .getQuotations()
+      .then(setQuotations)
+      .catch((err) => {
+        console.error("Failed to load quotations:", err);
+        setQuotations([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const filtered = quotations.filter((q) => {
@@ -129,10 +130,10 @@ export default function MyQuotationsPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-[20px] font-bold text-foreground">
-                      {formatINR(q.total)}
+                      {formatCurrency(q.total, orgConfig)}
                     </p>
                     <p className="text-[12px] text-foreground-muted">
-                      After {formatINR(q.total_discount)} discount
+                      After {formatCurrency(q.total_discount, orgConfig)} discount
                     </p>
                   </div>
                 </div>
@@ -164,7 +165,7 @@ export default function MyQuotationsPage() {
                               {item.quantity}
                             </td>
                             <td className="py-2 pr-4 text-right text-foreground-muted">
-                              {formatINR(item.unit_price)}
+                              {formatCurrency(item.unit_price, orgConfig)}
                             </td>
                             <td className="py-2 pr-4 text-center">
                               {item.discount_percent > 0 ? (
@@ -176,7 +177,7 @@ export default function MyQuotationsPage() {
                               )}
                             </td>
                             <td className="py-2 text-right font-semibold text-foreground">
-                              {formatINR(item.total_price)}
+                              {formatCurrency(item.total_price, orgConfig)}
                             </td>
                           </tr>
                         ))}

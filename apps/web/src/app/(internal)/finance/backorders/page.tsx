@@ -383,7 +383,7 @@ export default function BackordersPage() {
                   Order Value
                 </p>
                 <p className="text-[20px] font-bold text-foreground mt-0.5">
-                  Rs. {selected.value}
+                  Rs. {selected ? selected.valueAtRisk : 0}
                 </p>
                 <p className="text-[11px] text-foreground-muted">
                   Placed {selected.orderDate}
@@ -636,7 +636,7 @@ export default function BackordersPage() {
                 Backorders
               </h3>
               <span className="text-[11px] bg-danger/10 text-danger border border-danger/20 px-2 py-0.5 rounded-full font-semibold">
-                {backorders.filter((b) => b.status !== "cancelled").length}{" "}
+                {activeBackorders.filter((b) => b.status !== "cancelled").length}{" "}
                 active
               </span>
             </div>
@@ -655,7 +655,7 @@ export default function BackordersPage() {
                   </tr>
                 </thead>
                 <tbody className="text-[13px] divide-y divide-border">
-                  {backorders.map((item) => {
+                  {activeBackorders.map((item) => {
                     const sc = statusConfig[item.status];
                     const SIcon = sc.icon;
                     const isActive = item.id === selectedId;

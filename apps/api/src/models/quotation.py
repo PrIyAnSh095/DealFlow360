@@ -26,6 +26,7 @@ class Quotation(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     lines = relationship("QuoteLine", back_populates="quotation", cascade="all, delete-orphan")
+    deal = relationship("Deal", back_populates="quotations")
 
 class QuoteLine(Base):
     __tablename__ = "quote_lines"

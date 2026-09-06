@@ -17,7 +17,11 @@ class Deal(Base):
     status = Column(String, default="draft", nullable=False) # Kanban column
     risk = Column(String, default="low") # low, medium, high
     
+    owner_id = Column(String, ForeignKey("users.id"), nullable=True)
+    
     customer = relationship("Customer", back_populates="deals")
+    quotations = relationship("Quotation", back_populates="deal", cascade="all, delete-orphan")
+    owner = relationship("User", foreign_keys=[owner_id])
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

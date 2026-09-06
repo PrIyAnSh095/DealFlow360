@@ -11,23 +11,30 @@ from src.models.deal import Deal
 from src.models.user import User
 from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation, Backorder
 from src.schemas.operations import (
-    OrderResponse, WarehouseResponse, WarehouseCreate, WarehouseUpdate,
+    OrderResponse, OrderStatusUpdate, WarehouseResponse, WarehouseCreate, WarehouseUpdate,
     FulfillmentRecommendationResponse, FulfillmentRecommendationLine, 
     FulfillmentAllocationInput, FulfillmentRequest, BackorderResponse, WarehouseStockResponse
 )
 from src.services.fulfillment_service import generate_fulfillment_plans, apply_fulfillment_plan
 from src.services.shipping_service import shipping_service
 from src.services.ai_service import ai_service
+from src.services.audit_service import log_audit_event
 
 router = APIRouter()
 
-# --- WAREHOUSES ---
+from src.models.audit import AuditLog
+
+# --- WAREHOUSES & STOCK ---
 @router.get("/warehouses", response_model=List[WarehouseResponse])
 def get_warehouses(db: Session = Depends(get_db)):
     return db.query(Warehouse).all()
 
 @router.post("/warehouses", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)
-def create_warehouse(warehouse_in: WarehouseCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def create_warehouse(
+    warehouse_in: WarehouseCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(RoleChecker(["admin", "sales_manager", "manager", "finance", "operations"]))
+):
     db_warehouse = Warehouse(**warehouse_in.model_dump())
     db.add(db_warehouse)
     db.commit()
@@ -35,7 +42,12 @@ def create_warehouse(warehouse_in: WarehouseCreate, db: Session = Depends(get_db
     return db_warehouse
 
 @router.patch("/warehouses/{warehouse_id}", response_model=WarehouseResponse)
-def update_warehouse(warehouse_id: str, warehouse_in: WarehouseUpdate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def update_warehouse(
+    warehouse_id: str, 
+    warehouse_in: WarehouseUpdate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(RoleChecker(["admin", "sales_manager", "manager", "finance", "operations"]))
+):
     db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
     if not db_warehouse:
         raise HTTPException(status_code=404, detail="Warehouse not found")
@@ -49,13 +61,118 @@ def update_warehouse(warehouse_id: str, warehouse_in: WarehouseUpdate, db: Sessi
     return db_warehouse
 
 @router.delete("/warehouses/{warehouse_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_warehouse(warehouse_id: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
+def delete_warehouse(
+    warehouse_id: str, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(RoleChecker(["admin", "sales_manager", "manager", "finance", "operations"]))
+):
     db_warehouse = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
     if not db_warehouse:
         raise HTTPException(status_code=404, detail="Warehouse not found")
         
-    db.delete(db_warehouse)
+    db_warehouse.is_active = False
     db.commit()
+
+@router.get("/warehouses/{warehouse_id}/stock")
+def get_warehouse_stock(
+    warehouse_id: str,
+    db: Session = Depends(get_db)
+):
+    wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not wh:
+        raise HTTPException(404, "Warehouse not found")
+        
+    products = db.query(Product).all()
+    stocks = db.query(Stock).filter(Stock.warehouse_id == warehouse_id).all()
+    stock_map = {s.product_id: s for s in stocks}
+    
+    result = []
+    for prod in products:
+        st = stock_map.get(prod.id)
+        qty_on_hand = st.quantity_on_hand if st else 0
+        qty_alloc = st.quantity_allocated if st else 0
+        avail = max(0, qty_on_hand - qty_alloc)
+        
+        result.append({
+            "id": st.id if st else f"new-{wh.id}-{prod.id}",
+            "product_id": prod.id,
+            "product_name": prod.name,
+            "sku": getattr(prod, 'sku', prod.id[:8]),
+            "warehouse_id": wh.id,
+            "warehouse_name": wh.name,
+            "quantity_on_hand": qty_on_hand,
+            "quantity_allocated": qty_alloc,
+            "available_quantity": avail
+        })
+    return result
+
+@router.patch("/warehouses/{warehouse_id}/stock/{product_id}")
+def update_product_stock(
+    warehouse_id: str,
+    product_id: str,
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin", "sales_manager", "manager", "finance", "operations"]))
+):
+    wh = db.query(Warehouse).filter(Warehouse.id == warehouse_id).first()
+    if not wh:
+        raise HTTPException(404, "Warehouse not found")
+        
+    prod = db.query(Product).filter(Product.id == product_id).first()
+    if not prod:
+        raise HTTPException(404, "Product not found")
+        
+    new_qty = payload.get("quantity_on_hand")
+    if new_qty is None or new_qty < 0:
+        raise HTTPException(400, "quantity_on_hand must be a non-negative integer.")
+        
+    reason = payload.get("reason", "Stock adjustment")
+    
+    stock = db.query(Stock).filter(Stock.warehouse_id == warehouse_id, Stock.product_id == product_id).first()
+    old_qty = stock.quantity_on_hand if stock else 0
+    
+    if stock:
+        if new_qty < stock.quantity_allocated:
+            raise HTTPException(400, f"Cannot set stock to {new_qty} because {stock.quantity_allocated} units are already allocated.")
+        stock.quantity_on_hand = new_qty
+    else:
+        stock = Stock(
+            warehouse_id=warehouse_id,
+            product_id=product_id,
+            quantity_on_hand=new_qty,
+            quantity_allocated=0
+        )
+        db.add(stock)
+        
+    diff = new_qty - old_qty
+    db.add(AuditLog(
+        actor_id=str(current_user.id),
+        action="STOCK_ADJUSTED",
+        entity_type="STOCK",
+        entity_id=f"{warehouse_id}:{product_id}",
+        details={
+            "warehouse_name": wh.name,
+            "product_name": prod.name,
+            "previous_quantity": old_qty,
+            "new_quantity": new_qty,
+            "difference": diff,
+            "reason": reason,
+            "adjusted_by": current_user.name
+        }
+    ))
+    
+    db.commit()
+    db.refresh(stock)
+    return {
+        "id": stock.id,
+        "product_id": prod.id,
+        "product_name": prod.name,
+        "warehouse_id": wh.id,
+        "warehouse_name": wh.name,
+        "quantity_on_hand": stock.quantity_on_hand,
+        "quantity_allocated": stock.quantity_allocated,
+        "available_quantity": stock.available_quantity
+    }
 
 # --- ORDERS & FULFILLMENT ---
 @router.get("/orders", response_model=List[OrderResponse])
@@ -73,7 +190,11 @@ def get_pending_orders(db: Session = Depends(get_db)):
             status=order.status,
             created_at=order.created_at,
             customer_name=cust_name,
-            deal_name=f"Order for {cust_name}"
+            deal_name=f"Order for {cust_name}",
+            tracking_number=getattr(order, 'tracking_number', None),
+            carrier=getattr(order, 'carrier', None),
+            estimated_delivery=getattr(order, 'estimated_delivery', None),
+            delivery_notes=getattr(order, 'delivery_notes', None)
         ))
     return resp
 
@@ -93,7 +214,11 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
             status=existing_order.status,
             created_at=existing_order.created_at,
             customer_name=cust_name,
-            deal_name=f"Order for {cust_name}"
+            deal_name=f"Order for {cust_name}",
+            tracking_number=getattr(existing_order, 'tracking_number', None),
+            carrier=getattr(existing_order, 'carrier', None),
+            estimated_delivery=getattr(existing_order, 'estimated_delivery', None),
+            delivery_notes=getattr(existing_order, 'delivery_notes', None)
         )
         
     order = Order(quotation_id=quotation_id, status="pending_fulfillment")
@@ -109,7 +234,80 @@ def create_order_from_quote(quotation_id: str, db: Session = Depends(get_db)):
         status=order.status,
         created_at=order.created_at,
         customer_name=cust_name,
-        deal_name=f"Order for {cust_name}"
+        deal_name=f"Order for {cust_name}",
+        tracking_number=getattr(order, 'tracking_number', None),
+        carrier=getattr(order, 'carrier', None),
+        estimated_delivery=getattr(order, 'estimated_delivery', None),
+        delivery_notes=getattr(order, 'delivery_notes', None)
+    )
+
+@router.patch("/orders/{order_id}/status", response_model=OrderResponse)
+def update_order_status(
+    order_id: str,
+    update_data: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Updates order/delivery status, tracking number, carrier, and ETA in database."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    user_id = current_user.get("sub") if isinstance(current_user, dict) else getattr(current_user, "id", None)
+    user_role = (current_user.get("role") if isinstance(current_user, dict) else getattr(current_user, "role", "")).lower()
+
+    quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
+    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+
+    # Security IDOR Ownership Check for Sales Rep
+    if user_role == "sales_rep" and deal:
+        is_owner = (deal.owner_id == user_id) if deal.owner_id else False
+        is_cust_rep = (deal.customer.assigned_sales_rep_id == user_id) if (deal.customer and getattr(deal.customer, "assigned_sales_rep_id", None)) else False
+        if not is_owner and not is_cust_rep and deal.owner_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You are not authorized to update order delivery status for another Sales Rep's deal."
+            )
+        
+    if update_data.status:
+        order.status = update_data.status
+    if update_data.tracking_number is not None:
+        order.tracking_number = update_data.tracking_number
+    if update_data.carrier is not None:
+        order.carrier = update_data.carrier
+    if update_data.estimated_delivery is not None:
+        order.estimated_delivery = update_data.estimated_delivery
+    if update_data.delivery_notes is not None:
+        order.delivery_notes = update_data.delivery_notes
+
+    db.commit()
+    db.refresh(order)
+
+    quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first()
+    deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+    cust_name = deal.customer_name if (deal and hasattr(deal, 'customer_name') and deal.customer_name) else (deal.customer.name if (deal and hasattr(deal, 'customer') and deal.customer) else "Unknown")
+
+    user_id = current_user.get("sub", "system") if isinstance(current_user, dict) else getattr(current_user, "id", "system")
+    log_audit_event(
+        db,
+        user_id=user_id,
+        action="ORDER_STATUS_UPDATED",
+        entity_type="Order",
+        entity_id=order_id,
+        details=f"Updated status to {order.status}, tracking: {order.tracking_number}, carrier: {order.carrier}"
+    )
+
+    return OrderResponse(
+        id=order.id,
+        quotation_id=order.quotation_id,
+        status=order.status,
+        created_at=order.created_at,
+        customer_name=cust_name,
+        deal_name=f"Order for {cust_name}",
+        tracking_number=getattr(order, 'tracking_number', None),
+        carrier=getattr(order, 'carrier', None),
+        estimated_delivery=getattr(order, 'estimated_delivery', None),
+        delivery_notes=getattr(order, 'delivery_notes', None)
     )
 
 @router.get("/fulfillment/plans/{order_id}")

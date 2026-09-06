@@ -10,16 +10,9 @@ import {
   RefreshCcw,
 } from "lucide-react";
 import { customerApi, CustomerOrder } from "@/features/customer/api";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
-
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 const STATUS_COLORS: Record<string, string> = {
   confirmed: "bg-primary/10 text-primary border-primary/20",
@@ -51,7 +44,14 @@ export default function MyOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    customerApi.getOrders().then(setOrders).finally(() => setIsLoading(false));
+    customerApi
+      .getOrders()
+      .then(setOrders)
+      .catch((err) => {
+        console.error("Failed to load orders:", err);
+        setOrders([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   if (isLoading) {

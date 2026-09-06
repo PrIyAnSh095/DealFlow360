@@ -11,16 +11,22 @@ export default function NegotiatePage() {
   const [noActive, setNoActive] = useState(false);
 
   useEffect(() => {
-    customerApi.getQuotations().then(quotes => {
-      const negotiating = quotes.find(
-        (q) => q.status !== "ACCEPTED" && q.status !== "REJECTED"
-      );
-      if (negotiating) {
-        router.push(`/portal/quotations/${negotiating.id}`);
-      } else {
+    customerApi
+      .getQuotations()
+      .then((quotes) => {
+        const negotiating = quotes.find(
+          (q) => q.status !== "ACCEPTED" && q.status !== "REJECTED"
+        );
+        if (negotiating) {
+          router.push(`/portal/quotations/${negotiating.id}`);
+        } else {
+          setNoActive(true);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load quotations for negotiation:", err);
         setNoActive(true);
-      }
-    });
+      });
   }, [router]);
 
   if (noActive) {

@@ -50,15 +50,41 @@ def get_health(
             score -= 10
             issues.append("Deal is stalled in approval phase.")
             
+        # Inventory Risk Evaluation
+        inv_risk = "Low"
+        from src.models.quotation import Quotation, QuoteLine
+        from src.models.operations import Stock
+        from src.models.audit import AuditLog
+        
+        quote = db.query(Quotation).filter(Quotation.deal_id == deal.id).order_by(Quotation.created_at.desc()).first()
+        if quote:
+            for line in quote.lines:
+                stocks = db.query(Stock).filter(Stock.product_id == line.product_id).all()
+                total_avail = sum([max(0, s.quantity_on_hand - s.quantity_allocated) for s in stocks])
+                if total_avail < line.quantity:
+                    inv_risk = "High"
+                    issues.append(f"Insufficient stock for item {line.product_id}")
+                    score -= 15
+                    break
+
+        # Engagement Evaluation
+        audit_count = db.query(AuditLog).filter(AuditLog.entity_id == deal.id).count()
+        if audit_count > 3:
+            engagement_status = "High"
+        elif audit_count > 0:
+            engagement_status = "Medium"
+        else:
+            engagement_status = "data_unavailable"
+
         health_data.append(DealHealthResponse(
             id=f"health-{deal.id}",
             deal_id=deal.id,
-            customer_name=deal.customer.name if deal.customer else "Unknown",
+            customer_name=deal.customer.name if (deal.customer and hasattr(deal.customer, 'name')) else (getattr(deal, 'customer_name', 'Unknown') or "Unknown"),
             health_score=max(0, score),
             margin_health=margin_health,
             discount_risk=discount_risk,
-            inventory_risk="Not tracked",
-            engagement="Not tracked",
+            inventory_risk=inv_risk,
+            engagement=engagement_status,
             issues=issues
         ))
         

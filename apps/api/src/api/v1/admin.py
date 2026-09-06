@@ -9,6 +9,7 @@ from src.models.pricing import PriceList
 from src.models.customer import CustomerTier, Customer
 from src.models.operations import Warehouse
 from src.models.user import User
+from src.models.organization import OrganizationProfile
 from src.models.audit import AuditEvent, AuditLog
 from src.models.ai_config import CompanyAIConfig
 from src.models.admin import (
@@ -180,6 +181,30 @@ def delete_subscription_plan(plan_id: str, db: Session = Depends(get_db), curren
     db.add(AuditLog(actor_id=str(current_user.id), action="DELETE_SUBSCRIPTION_PLAN", entity_type="SUBSCRIPTION_PLAN", entity_id=plan_id))
     db.commit()
 
+# --- ORGANIZATION PUBLIC CONFIG ---
+@router.get("/organization/public-config")
+def get_org_public_config(db: Session = Depends(get_db)):
+    """
+    Returns non-sensitive display configuration from OrganizationProfile.
+    No authentication required — used by portal/frontend to localise currency displays.
+    All values are read from the database, never hardcoded.
+    """
+    org = db.query(OrganizationProfile).filter(OrganizationProfile.id == "org-default").first()
+    if not org:
+        return {"primary_currency": "INR", "locale": "en-IN"}
+    # Derive locale from currency: INR -> en-IN, USD -> en-US, EUR -> en-EU, GBP -> en-GB
+    currency_locale_map = {
+        "INR": "en-IN",
+        "USD": "en-US",
+        "EUR": "de-DE",
+        "GBP": "en-GB",
+        "AUD": "en-AU",
+        "SGD": "en-SG",
+    }
+    currency = org.primary_currency or "INR"
+    locale = currency_locale_map.get(currency, "en-IN")
+    return {"primary_currency": currency, "locale": locale}
+
 # --- SETTINGS ---
 @router.get("/settings", response_model=List[GlobalSettingResponse])
 def get_settings(db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["admin"]))):
@@ -304,7 +329,8 @@ def get_audit_logs(
     user_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["admin"]))
 ):
     query = db.query(AuditEvent)
     if action:

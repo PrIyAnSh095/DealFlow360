@@ -24,10 +24,12 @@ class Customer(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     company = Column(String, nullable=True)
     tier_id = Column(String, ForeignKey("customer_tiers.id"), nullable=True)
+    assigned_sales_rep_id = Column(String, ForeignKey("users.id"), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     tier = relationship("CustomerTier")
+    sales_rep = relationship("User", foreign_keys=[assigned_sales_rep_id])
     deals = relationship("Deal", back_populates="customer")
 

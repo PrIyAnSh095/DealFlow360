@@ -12,17 +12,8 @@ import {
   TrendingDown,
 } from "lucide-react";
 import { customerApi } from "@/features/customer/api";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
-
-function formatINR(value: number) {
-  const abs = Math.abs(value);
-  const formatted = new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(abs);
-  return value < 0 ? `− ${formatted}` : formatted;
-}
 
 const STATUS_META: Record<
   string,
@@ -56,13 +47,21 @@ const STATUS_META: Record<
 };
 
 export default function InvoicesPage() {
+  const orgConfig = useOrgConfig();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    customerApi.getInvoices().then(setInvoices).finally(() => setIsLoading(false));
+    customerApi
+      .getInvoices()
+      .then(setInvoices)
+      .catch((err) => {
+        console.error("Failed to load invoices:", err);
+        setInvoices([]);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   const filtered = invoices.filter((inv) => {
@@ -115,7 +114,7 @@ export default function InvoicesPage() {
             </p>
           </div>
           <p className="text-2xl font-bold text-danger">
-            {formatINR(totalDue)}
+            {formatCurrency(totalDue, orgConfig)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-1">
             Across {invoices.filter((i) => i.status === "sent" || i.status === "overdue").length} invoices
@@ -132,7 +131,7 @@ export default function InvoicesPage() {
             </p>
           </div>
           <p className="text-2xl font-bold text-success">
-            {formatINR(totalPaid)}
+            {formatCurrency(totalPaid, orgConfig)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-1">
             Across {invoices.filter((i) => i.status === "paid").length} invoices
@@ -149,7 +148,7 @@ export default function InvoicesPage() {
             </p>
           </div>
           <p className="text-2xl font-bold text-warning">
-            {formatINR(Math.abs(totalCredit))}
+            {formatCurrency(Math.abs(totalCredit), orgConfig)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-1">
             {creditNotes.length} credit note{creditNotes.length !== 1 ? "s" : ""}
@@ -261,7 +260,7 @@ export default function InvoicesPage() {
                               : "text-foreground"
                           )}
                         >
-                          {formatINR(inv.amount)}
+                          {formatCurrency(inv.amount, orgConfig)}
                         </span>
                         {inv.paidAt && (
                           <p className="text-[11px] text-success mt-0.5">

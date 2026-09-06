@@ -30,5 +30,10 @@ export const quotationsApi = {
   getAiExplanation: async (quotationId: string): Promise<any> => {
     const response = await apiClient.post<any>(`/quotations/${quotationId}/ai-explanation`);
     return response.data;
+  },
+
+  updateQuotationStatus: async (quotationId: string, status: string, notes?: string): Promise<any> => {
+    const response = await apiClient.patch<any>(`/quotations/${quotationId}/status`, { status, notes });
+    return response.data;
   }
 };

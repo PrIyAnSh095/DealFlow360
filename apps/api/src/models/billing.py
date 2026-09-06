@@ -58,6 +58,8 @@ class BillingScheduleItem(Base):
     amount = Column(Float, nullable=False)
     status = Column(String, default="PENDING") # PENDING, INVOICED, PAID
 
+    subscription = relationship("Subscription")
+
 class Invoice(Base):
     __tablename__ = "invoices"
 

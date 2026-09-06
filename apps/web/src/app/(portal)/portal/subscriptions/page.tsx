@@ -15,15 +15,8 @@ import {
 import { toast } from "sonner";
 import { customerApi } from "@/features/customer/api";
 import { Subscription } from "@/features/customer/types";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
-
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 const STATUS_META: Record<
   string,
@@ -56,6 +49,7 @@ const STATUS_META: Record<
 };
 
 function SubscriptionCard({ sub }: { sub: Subscription }) {
+  const orgConfig = useOrgConfig();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const meta = STATUS_META[sub.status] ?? STATUS_META["cancelled"];
   const isCancelled = sub.status === "cancelled";
@@ -132,7 +126,7 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
 
         <div className="text-right">
           <p className="text-[22px] font-bold text-foreground">
-            {formatINR(sub.amount)}
+            {formatCurrency(sub.amount, orgConfig)}
           </p>
           <p className="text-[12px] text-foreground-muted">
             per {sub.billingCycle === "monthly" ? "month" : "year"}
@@ -191,7 +185,7 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
               </p>
               <p className="text-[12px] text-foreground-muted">
                 Your trial ends on {sub.nextBillingDate}. You'll be billed{" "}
-                {formatINR(sub.amount)}/mo after that unless you cancel.
+                {formatCurrency(sub.amount, orgConfig)}/mo after that unless you cancel.
               </p>
             </div>
           </div>
@@ -268,12 +262,20 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
 }
 
 export default function SubscriptionsPage() {
+  const orgConfig = useOrgConfig();
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     import("@/features/customer/api").then(({ customerApi }) => {
-      customerApi.getSubscriptions().then(setSubscriptions).finally(() => setIsLoading(false));
+      customerApi
+        .getSubscriptions()
+        .then(setSubscriptions)
+        .catch((err) => {
+          console.error("Failed to load subscriptions:", err);
+          setSubscriptions([]);
+        })
+        .finally(() => setIsLoading(false));
     });
   }, []);
 
@@ -310,7 +312,7 @@ export default function SubscriptionsPage() {
               Monthly Recurring
             </p>
             <p className="text-[18px] font-bold text-foreground">
-              {formatINR(totalMRR)}
+              {formatCurrency(totalMRR, orgConfig)}
             </p>
           </div>
         </div>

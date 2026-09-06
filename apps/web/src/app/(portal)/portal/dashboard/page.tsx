@@ -15,16 +15,9 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { customerApi, CustomerQuotation, CustomerOrder } from "@/features/customer/api";
+import { useOrgConfig, formatCurrency } from "@/features/customer/useOrgConfig";
 import { cn } from "@/lib/utils";
 
-
-function formatINR(value: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -51,6 +44,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CustomerDashboardPage() {
+  const orgConfig = useOrgConfig();
   const [quotations, setQuotations] = useState<CustomerQuotation[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -165,7 +159,7 @@ export default function CustomerDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-foreground-muted group-hover:text-success transition-colors" />
           </div>
           <p className="text-2xl font-bold text-foreground">
-            {formatINR(totalMonthlyRecurring)}
+            {formatCurrency(totalMonthlyRecurring, orgConfig)}
           </p>
           <p className="text-[12px] text-foreground-muted mt-0.5">
             Monthly Recurring
@@ -209,7 +203,7 @@ export default function CustomerDashboardPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-[13px] font-semibold text-foreground">
-                      {formatINR(q.total)}
+                      {formatCurrency(q.total, orgConfig)}
                     </p>
                     <Link
                       href={`/portal/quotations/${q.id}`}
@@ -334,7 +328,7 @@ export default function CustomerDashboardPage() {
                             : "text-foreground"
                         )}
                       >
-                        {formatINR(inv.amount)}
+                        {formatCurrency(inv.amount, orgConfig)}
                       </p>
                       <StatusBadge status={inv.status} />
                     </div>
@@ -364,20 +358,24 @@ export default function CustomerDashboardPage() {
                       {sub.product_name || "Subscription"}
                     </p>
                     <p className="text-[13px] font-semibold text-foreground">
-                      {formatINR(sub.amount)}/mo
+                      {formatCurrency(sub.amount, orgConfig)}/mo
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-1.5 rounded-full bg-primary transition-all"
-                        style={{ width: `${sub.usagePercent ?? 0}%` }}
-                      />
+                  {sub.usagePercent !== undefined ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-1.5 rounded-full bg-primary transition-all"
+                          style={{ width: `${sub.usagePercent}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-foreground-muted shrink-0">
+                        {sub.usagePercent}%
+                      </span>
                     </div>
-                    <span className="text-[10px] text-foreground-muted shrink-0">
-                      {sub.usagePercent ?? 0}%
-                    </span>
-                  </div>
+                  ) : (
+                    <p className="text-[10px] text-foreground-muted italic">Usage data unavailable</p>
+                  )}
                   <p className="text-[11px] text-foreground-muted">
                     Renews {sub.next_billing_date ? new Date(sub.next_billing_date).toLocaleDateString() : 'Next Month'}
                   </p>

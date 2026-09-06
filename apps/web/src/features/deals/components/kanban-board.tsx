@@ -11,10 +11,18 @@ const COLUMNS: { id: DealStatus; title: string }[] = [
   { id: "review", title: "Review" },
   { id: "approval", title: "Approval" },
   { id: "negotiation", title: "Negotiation" },
-  { id: "confirmed", title: "Confirmed" },
-  { id: "fulfillment", title: "Fulfillment" },
+  { id: "confirmed", title: "Won / Confirmed" },
   { id: "completed", title: "Completed" },
 ];
+
+export const normalizeDealStatus = (status: string): string => {
+  const s = status.toLowerCase();
+  if (s === "won" || s === "closed_won" || s === "confirmed") return "confirmed";
+  if (s === "lost" || s === "closed_lost") return "draft";
+  if (s === "proposal") return "review";
+  if (s === "lead" || s === "qualification") return "draft";
+  return s;
+};
 
 interface KanbanBoardProps {
   initialDeals: Deal[];

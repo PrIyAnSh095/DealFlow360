@@ -20,3 +20,24 @@ export function useUpdateDealStatus() {
     },
   });
 }
+
+export function useNegotiations() {
+  return useQuery({
+    queryKey: ['negotiations'],
+    queryFn: dealsApi.getNegotiations,
+  });
+}
+
+export function useRespondNegotiation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ messageId, payload }: { messageId: string; payload: { action: string; message?: string; counter_discount_pct?: number } }) =>
+      dealsApi.respondToNegotiation(messageId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['negotiations'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      queryClient.invalidateQueries({ queryKey: ['quotations'] });
+    },
+  });
+}

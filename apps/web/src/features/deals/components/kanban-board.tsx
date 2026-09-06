@@ -26,6 +26,12 @@ export const normalizeDealStatus = (status: string): string => {
   return "new";
 };
 
+const getPersistedDealStatus = (columnId: string): DealStatus => {
+  if (columnId === "new") return "draft";
+  if (columnId === "quotation") return "review";
+  return columnId as DealStatus;
+};
+
 interface KanbanBoardProps {
   initialDeals: Deal[];
 }
@@ -56,7 +62,7 @@ export function KanbanBoard({ initialDeals }: KanbanBoardProps) {
       return;
     }
 
-    const newStatus = destination.droppableId as DealStatus;
+    const newStatus = getPersistedDealStatus(destination.droppableId);
     
     // Optimistic UI update
     setDeals((prev) => 

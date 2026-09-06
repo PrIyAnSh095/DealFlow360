@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { dealsApi } from './api';
 import { DealStatus } from './types';
 
@@ -17,6 +18,10 @@ export function useUpdateDealStatus() {
       dealsApi.updateDealStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      toast.error('Failed to update deal status.');
     },
   });
 }

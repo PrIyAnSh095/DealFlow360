@@ -85,6 +85,13 @@ def test_sales_rep_deal_status_update_valid_and_invalid(db_session):
     assert valid_resp.status_code == 200
     assert valid_resp.json()["status"] == "review"
 
+    # Kanban lane moves remain editable after a deal reaches won/lost.
+    won_resp = client.patch(f"/api/v1/deals/{deal.id}", json={"status": "won"})
+    assert won_resp.status_code == 200
+    lost_resp = client.patch(f"/api/v1/deals/{deal.id}", json={"status": "lost"})
+    assert lost_resp.status_code == 200
+    assert lost_resp.json()["status"] == "lost"
+
     app.dependency_overrides.clear()
 
 def test_sales_rep_order_delivery_status_update_idor(db_session):

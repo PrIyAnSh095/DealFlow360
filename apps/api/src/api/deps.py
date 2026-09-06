@@ -21,7 +21,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 # the role values stored in the users table and the frontend navigation policy.
 INTERNAL_ROLES = ["sales_rep", "sales_manager", "finance", "admin"]
 DEAL_VIEW_ROLES = INTERNAL_ROLES
-DEAL_WRITE_ROLES = ["sales_rep", "admin"]
+DEAL_WRITE_ROLES = ["sales_rep", "sales_manager", "admin"]
 QUOTE_VIEW_ROLES = INTERNAL_ROLES
 QUOTE_WRITE_ROLES = ["sales_rep", "admin"]
 APPROVAL_VIEW_ROLES = INTERNAL_ROLES

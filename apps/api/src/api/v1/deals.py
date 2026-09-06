@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from decimal import Decimal
@@ -21,7 +22,15 @@ def get_deals(
     """
     Get all deals accessible by the current user.
     """
-    deals = db.query(Deal).options(joinedload(Deal.customer)).order_by(Deal.created_at.desc()).all()
+    deals_query = db.query(Deal).options(joinedload(Deal.customer))
+    if current_user.role == "sales_rep":
+        deals_query = deals_query.outerjoin(Customer).filter(
+            or_(
+                Deal.owner_id == current_user.id,
+                Customer.assigned_sales_rep_id == current_user.id,
+            )
+        )
+    deals = deals_query.order_by(Deal.created_at.desc()).all()
     return deals
 
 @router.get("/{deal_id}", response_model=DealResponse)
@@ -48,6 +57,7 @@ ALLOWED_TRANSITIONS = {
     "confirmed": ["completed", "fulfillment"],
     "lost": ["draft"]
 }
+KANBAN_STATUSES = {"draft", "review", "approval", "negotiation", "won", "lost"}
 
 @router.post("/", response_model=DealResponse, status_code=status.HTTP_201_CREATED)
 def create_deal(
@@ -169,7 +179,7 @@ def update_deal(
     if current_user.role == "sales_rep":
         is_owner = deal.owner_id == current_user.id if deal.owner_id else False
         is_cust_rep = deal.customer.assigned_sales_rep_id == current_user.id if (deal.customer and getattr(deal.customer, "assigned_sales_rep_id", None)) else False
-        if not is_owner and not is_cust_rep and deal.owner_id is not None:
+        if not is_owner and not is_cust_rep:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Forbidden: You are not authorized to update deals assigned to another Sales Rep."
@@ -183,8 +193,9 @@ def update_deal(
         target_status = update_data["status"].lower()
         
         if current_status != target_status:
-            allowed = ALLOWED_TRANSITIONS.get(current_status, ["draft", "review", "approval", "negotiation", "won", "lost"])
-            if target_status not in allowed:
+            allowed = ALLOWED_TRANSITIONS.get(current_status, list(KANBAN_STATUSES))
+            kanban_move = current_status in KANBAN_STATUSES and target_status in KANBAN_STATUSES
+            if target_status not in allowed and not kanban_move:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Invalid deal status transition from '{deal.status}' to '{update_data['status']}'."

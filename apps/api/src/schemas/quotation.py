@@ -53,7 +53,7 @@ class ProductResponse(BaseModel):
     name: str
     sku: str
     category: str
-    sales_price: Decimal
+    sales_price: float
     
     class Config:
         from_attributes = True

@@ -12,6 +12,7 @@ interface CreateDealDialogProps {
 export function CreateDealDialog({ isOpen, onClose }: CreateDealDialogProps) {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [dealValue, setDealValue] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,7 +20,15 @@ export function CreateDealDialog({ isOpen, onClose }: CreateDealDialogProps) {
 
   useEffect(() => {
     if (isOpen) {
-      customersApi.getCustomers().then(setCustomers).catch(console.error);
+      setIsLoadingCustomers(true);
+      setError("");
+      customersApi.getCustomers()
+        .then(setCustomers)
+        .catch((err) => {
+          console.error("Failed to load customers:", err);
+          setError("Unable to load customers. Please sign in again or try again.");
+        })
+        .finally(() => setIsLoadingCustomers(false));
     }
   }, [isOpen]);
 
@@ -73,7 +82,9 @@ export function CreateDealDialog({ isOpen, onClose }: CreateDealDialogProps) {
                 className="w-full bg-muted border border-border rounded-md px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary"
                 required
               >
-                <option value="">Select a customer...</option>
+                <option value="">
+                  {isLoadingCustomers ? "Loading customers..." : "Select a customer..."}
+                </option>
                 {customers.map(c => (
                   <option key={c.id} value={c.id}>{c.name} ({c.company})</option>
                 ))}
@@ -102,7 +113,7 @@ export function CreateDealDialog({ isOpen, onClose }: CreateDealDialogProps) {
             </button>
             <button 
               type="submit" 
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingCustomers || customers.length === 0}
               className="px-4 py-2 text-[13px] font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {isSubmitting ? "Creating..." : "Create Deal"}

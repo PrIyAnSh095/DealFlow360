@@ -10,7 +10,7 @@ export interface Customer {
 
 export const customersApi = {
   getCustomers: async (): Promise<Customer[]> => {
-    const response = await apiClient.get<Customer[]>('/customers');
+    const response = await apiClient.get<Customer[]>('/customers/options');
     return response.data;
   },
   

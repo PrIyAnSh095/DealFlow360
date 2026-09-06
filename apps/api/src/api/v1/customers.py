@@ -14,6 +14,19 @@ from src.schemas.customer import CustomerResponse, CustomerCreate
 
 router = APIRouter()
 
+@router.get("/options")
+def get_customer_options(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the small customer payload needed by deal and quotation forms."""
+    return db.query(
+        Customer.id,
+        Customer.name,
+        Customer.email,
+        Customer.company,
+    ).order_by(Customer.name).all()
+
 @router.get("/", response_model=List[CustomerResponse])
 def get_customers(
     db: Session = Depends(get_db),
@@ -24,27 +37,29 @@ def get_customers(
     Both values are calculated from real Invoice and Order records — never hardcoded.
     """
     customers = db.query(Customer).all()
+
+    lifetime_revenue_by_customer = dict(
+        db.query(
+            Invoice.customer_id,
+            func.coalesce(func.sum(Invoice.total), Decimal("0.00")),
+        )
+        .group_by(Invoice.customer_id)
+        .all()
+    )
+
+    order_count_by_customer = dict(
+        db.query(Deal.customer_id, func.count(Order.id))
+        .join(Quotation, Quotation.deal_id == Deal.id)
+        .join(Order, Order.quotation_id == Quotation.id)
+        .group_by(Deal.customer_id)
+        .all()
+    )
+
     resp = []
     for cust in customers:
-        # Lifetime revenue: sum of all invoice totals for this customer
-        lifetime_rev = db.query(func.sum(Invoice.total)).filter(
-            Invoice.customer_id == cust.id
-        ).scalar() or Decimal("0.00")
-
-        # Total orders: count of orders traceable through Quotation → Deal → Customer
-        # Join chain: Order → Quotation → Deal → Customer
-        deal_ids = [d.id for d in db.query(Deal.id).filter(Deal.customer_id == cust.id).all()]
-        if deal_ids:
-            quote_ids = [q.id for q in db.query(Quotation.id).filter(Quotation.deal_id.in_(deal_ids)).all()]
-            order_count = db.query(func.count(Order.id)).filter(
-                Order.quotation_id.in_(quote_ids)
-            ).scalar() or 0
-        else:
-            order_count = 0
-
         r = CustomerResponse.model_validate(cust)
-        r.lifetime_revenue = Decimal(str(lifetime_rev))
-        r.total_orders = order_count
+        r.lifetime_revenue = Decimal(str(lifetime_revenue_by_customer.get(cust.id, "0.00")))
+        r.total_orders = order_count_by_customer.get(cust.id, 0)
         resp.append(r)
     return resp
 

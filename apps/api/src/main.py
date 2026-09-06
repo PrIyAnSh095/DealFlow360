@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.v1 import (
@@ -26,11 +27,9 @@ import src.models
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Auto-create tables for local development/testing
-    try:
+    # Keep schema management out of API startup; use Alembic for PostgreSQL.
+    if os.getenv("AUTO_CREATE_SCHEMA", "false").lower() == "true":
         Base.metadata.create_all(bind=engine)
-    except Exception:
-        pass
     yield
 
 app = FastAPI(

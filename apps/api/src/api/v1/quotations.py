@@ -15,6 +15,7 @@ from src.services.pricing_service import recalculate_quotation
 from src.services.approval_service import submit_quote_for_approval
 from src.services.ai_service import ai_service
 from src.services.audit_service import log_audit_event
+from src.schemas.quotation import ProductResponse
 
 router = APIRouter()
 
@@ -62,6 +63,10 @@ def list_quotations(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Error in list_quotations: {e}")
         return []
+
+@router.get("/products", response_model=List[ProductResponse])
+def list_quotation_products(db: Session = Depends(get_db)):
+    return db.query(Product).filter(Product.active.is_(True)).order_by(Product.name).all()
 
 @router.get("/{quotation_id}")
 def get_quotation(quotation_id: str, db: Session = Depends(get_db)):

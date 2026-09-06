@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Warehouse,
   SplitSquareHorizontal,
@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import WarehouseAIModal from "@/components/WarehouseAIModal";
+import { operationsApi } from "@/features/operations/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,43 +43,7 @@ interface OrderItem {
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
-const mockOrders: OrderItem[] = [
-  {
-    id: "split-1",
-    orderId: "ORD-4021",
-    customer: "Acme Corp",
-    product: "Dell Laptops",
-    requested: 100,
-    status: "pending",
-    warehouses: [
-      { warehouseId: "w-main", warehouseName: "Main Warehouse", location: "Mumbai", available: 60, allocated: 60 },
-      { warehouseId: "w-east", warehouseName: "East Warehouse", location: "Kolkata", available: 40, allocated: 40 },
-    ],
-  },
-  {
-    id: "split-2",
-    orderId: "ORD-4022",
-    customer: "Globex Ltd",
-    product: "HP Monitors",
-    requested: 50,
-    status: "pending",
-    warehouses: [
-      { warehouseId: "w-main", warehouseName: "Main Warehouse", location: "Mumbai", available: 30, allocated: 30 },
-      { warehouseId: "w-north", warehouseName: "North Warehouse", location: "Delhi", available: 20, allocated: 20 },
-    ],
-  },
-  {
-    id: "split-3",
-    orderId: "ORD-4023",
-    customer: "Pinnacle Tech",
-    product: "Cisco Routers",
-    requested: 25,
-    status: "accepted",
-    warehouses: [
-      { warehouseId: "w-main", warehouseName: "Main Warehouse", location: "Mumbai", available: 25, allocated: 25 },
-    ],
-  },
-];
+// Removed static mock orders
 
 // ─── Color Helpers ────────────────────────────────────────────────────────────
 
@@ -105,16 +70,66 @@ function AllocationBar({ allocated, total, hasIssue }: { allocated: number; tota
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WarehouseSplitPage() {
-  const [orders, setOrders] = useState<OrderItem[]>(mockOrders);
-  const [selectedId, setSelectedId] = useState<string>(mockOrders[0].id);
+  const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editValues, setEditValues] = useState<Record<string, number>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiData, setAiData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const selected = orders.find((o) => o.id === selectedId)!;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [warehousesData, allOrders] = await Promise.all([
+          operationsApi.getWarehouses(),
+          operationsApi.getOrders(),
+        ]);
+
+        const pendingOrders = allOrders.filter(o => o.status === "pending_fulfillment");
+        let items: OrderItem[] = [];
+
+        for (const order of pendingOrders) {
+          const recs = await operationsApi.getRecommendations(order.id);
+          for (const line of recs.lines) {
+            const warehouses: WarehouseAllocation[] = line.recommended_allocations.map(alloc => {
+              const wh = warehousesData.find(w => w.id === alloc.warehouse_id);
+              return {
+                warehouseId: alloc.warehouse_id || "unassigned",
+                warehouseName: wh?.name || "Unassigned / Backorder",
+                location: wh?.location || "N/A",
+                available: wh?.capacity || 9999, // Need real stock info ideally, but for now fallback to capacity
+                allocated: alloc.quantity,
+                hasIssue: !alloc.warehouse_id
+              };
+            });
+
+            items.push({
+              id: line.quote_line_id,
+              orderId: order.id,
+              customer: order.customer_name || "Unknown Customer",
+              product: line.product_name,
+              requested: line.requested_quantity,
+              status: "pending",
+              warehouses,
+            });
+          }
+        }
+        
+        setOrders(items);
+        if (items.length > 0) setSelectedId(items[0].id);
+      } catch (err) {
+        console.error("Failed to load operations data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const selected = orders.find((o) => o.id === selectedId) || null;
 
   const handleOpenWarehouseAi = async () => {
     setIsAiModalOpen(true);
@@ -135,12 +150,12 @@ export default function WarehouseSplitPage() {
     }
   };
 
-  const totalAllocated = selected.warehouses.reduce(
+  const totalAllocated = selected?.warehouses.reduce(
     (s, w) => s + (editMode ? (editValues[w.warehouseId] ?? w.allocated) : w.allocated),
     0
-  );
-  const isValid = totalAllocated === selected.requested;
-  const diff = totalAllocated - selected.requested;
+  ) || 0;
+  const isValid = selected && totalAllocated === selected.requested;
+  const diff = selected ? totalAllocated - selected.requested : 0;
 
   function handleSelectOrder(id: string) {
     setSelectedId(id);
@@ -150,6 +165,7 @@ export default function WarehouseSplitPage() {
   }
 
   function handleStartEdit() {
+    if (!selected) return;
     const vals: Record<string, number> = {};
     selected.warehouses.forEach((w) => { vals[w.warehouseId] = w.allocated; });
     setEditValues(vals);
@@ -170,7 +186,21 @@ export default function WarehouseSplitPage() {
     setTimeout(() => setSaveSuccess(false), 3000);
   }
 
-  function handleSaveOverride() {
+  async function handleSaveOverride() {
+    if (!isValid || !selected) return;
+    
+    const allocations = selected.warehouses.map(w => ({
+      quote_line_id: selected.id,
+      warehouse_id: w.warehouseId === "unassigned" ? null : w.warehouseId,
+      quantity: editValues[w.warehouseId] ?? w.allocated
+    }));
+
+    try {
+      await operationsApi.processFulfillment(selected.orderId, allocations);
+    } catch(err) {
+      console.error(err);
+    }
+
     if (!isValid) return;
     setOrders((prev) =>
       prev.map((o) =>
@@ -239,7 +269,12 @@ export default function WarehouseSplitPage() {
             Orders Requiring Split
           </div>
           <div className="flex-1 overflow-auto divide-y divide-border">
-            {orders.map((order) => {
+            {isLoading ? (
+              <div className="p-8 text-center text-[13px] text-foreground-muted">Loading orders...</div>
+            ) : orders.length === 0 ? (
+              <div className="p-8 text-center text-[13px] text-foreground-muted">No pending orders.</div>
+            ) : (
+              orders.map((order) => {
               const sc = statusConfig[order.status];
               const isActive = order.id === selectedId;
               return (
@@ -267,14 +302,22 @@ export default function WarehouseSplitPage() {
                   </div>
                 </button>
               );
-            })}
+              })
+            )}
           </div>
         </div>
 
         {/* Right: Split Detail Panel */}
         <div className="flex-1 flex flex-col gap-5 min-w-0">
-
-          {/* Order Header Card */}
+          {!selected && !isLoading && (
+            <div className="flex flex-col items-center justify-center bg-surface border border-border rounded-lg shadow-sm p-12 text-center h-[50vh]">
+               <Warehouse className="w-12 h-12 text-muted-foreground/30 mb-4" />
+               <p className="text-foreground-muted text-[13px]">Select an order to view allocation split details.</p>
+            </div>
+          )}
+          {selected && (
+            <>
+              {/* Order Header Card */}
           <div className="bg-surface border border-border rounded-lg shadow-sm p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -544,6 +587,8 @@ export default function WarehouseSplitPage() {
               </div>
             </div>
           )}
+          </>
+          )}
 
         </div>
       </div>
@@ -553,7 +598,7 @@ export default function WarehouseSplitPage() {
         onClose={() => setIsAiModalOpen(false)}
         isLoading={aiLoading}
         data={aiData}
-        orderId={selected.orderId}
+        orderId={selected?.orderId || ""}
       />
     </div>
   );

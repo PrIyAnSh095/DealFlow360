@@ -1,21 +1,25 @@
-import { Order, Warehouse, FulfillmentRecommendationResponse, FulfillmentAllocationInput } from "./types";
 import { apiClient } from "@/lib/api-client";
+import { Warehouse, Order, FulfillmentRecommendationResponse, FulfillmentAllocationInput } from "./types";
 
-export async function fetchWarehouses(): Promise<Warehouse[]> {
-  const res = await apiClient.get<Warehouse[]>('/operations/warehouses');
-  return res.data;
-}
+export const fetchWarehouses = async (): Promise<Warehouse[]> => {
+  return apiClient.get("/operations/warehouses");
+};
 
-export async function fetchPendingOrders(): Promise<Order[]> {
-  const res = await apiClient.get<Order[]>('/operations/orders');
-  return res.data;
-}
+export const fetchPendingOrders = async (): Promise<Order[]> => {
+  return apiClient.get("/operations/orders");
+};
 
-export async function fetchFulfillmentRecommendation(orderId: string): Promise<FulfillmentRecommendationResponse> {
-  const res = await apiClient.get<FulfillmentRecommendationResponse>(`/operations/fulfillment/recommend/${orderId}`);
-  return res.data;
-}
+export const fetchFulfillmentRecommendation = async (orderId: string): Promise<FulfillmentRecommendationResponse> => {
+  return apiClient.get(`/operations/fulfillment/recommend/${orderId}`);
+};
 
-export async function submitFulfillment(orderId: string, allocations: FulfillmentAllocationInput[]): Promise<void> {
-  await apiClient.post(`/operations/fulfillment/${orderId}`, { allocations });
-}
+export const submitFulfillment = async (orderId: string, allocations: FulfillmentAllocationInput[]): Promise<any> => {
+  return apiClient.post(`/operations/fulfillment/${orderId}`, { allocations });
+};
+
+export const operationsApi = {
+  getWarehouses: fetchWarehouses,
+  getOrders: fetchPendingOrders,
+  getRecommendations: fetchFulfillmentRecommendation,
+  processFulfillment: submitFulfillment,
+};

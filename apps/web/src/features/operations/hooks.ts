@@ -1,16 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWarehouses, fetchPendingOrders, fetchFulfillmentRecommendation, submitFulfillment } from "./api";
-import { FulfillmentAllocationInput } from "./types";
+import { FulfillmentAllocationInput, Warehouse, Order, FulfillmentRecommendationResponse } from "./types";
 
 export function useWarehouses() {
-  return useQuery({
+  return useQuery<Warehouse[]>({
     queryKey: ["warehouses"],
     queryFn: fetchWarehouses
   });
 }
 
 export function usePendingOrders() {
-  return useQuery({
+  return useQuery<Order[]>({
     queryKey: ["orders", "pending"],
     queryFn: fetchPendingOrders,
     refetchInterval: 10000,
@@ -18,9 +18,9 @@ export function usePendingOrders() {
 }
 
 export function useFulfillmentRecommendation(orderId: string | null) {
-  return useQuery({
+  return useQuery<FulfillmentRecommendationResponse | null>({
     queryKey: ["fulfillment", "recommend", orderId],
-    queryFn: () => fetchFulfillmentRecommendation(orderId!),
+    queryFn: () => orderId ? fetchFulfillmentRecommendation(orderId) : Promise.resolve(null),
     enabled: !!orderId
   });
 }

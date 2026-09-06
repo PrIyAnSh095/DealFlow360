@@ -43,3 +43,31 @@ export interface DiscountPolicy {
   created_at: string;
 }
 
+export interface PricingRule {
+  id: string;
+  name: string;
+  description: string | null;
+  rule_type: string;
+  adjustment_type: string;
+  value: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ApprovalRule {
+  id: string;
+  name: string;
+  risk_threshold: string | null;
+  discount_threshold: number | null;
+  target_role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ApprovalChain {
+  id: string;
+  name: string;
+  sequence: string;
+  is_active: boolean;
+  created_at: string;
+}

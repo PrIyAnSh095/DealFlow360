@@ -2,6 +2,8 @@ export interface Warehouse {
   id: string;
   name: string;
   location: string;
+  capacity?: number;
+  is_active?: boolean;
 }
 
 export interface Order {

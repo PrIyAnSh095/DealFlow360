@@ -249,7 +249,7 @@ function SubscriptionCard({ sub }: { sub: Subscription }) {
                       await customerApi.cancelSubscription(sub.id);
                       toast.success("Subscription cancelled successfully.");
                       setShowCancelConfirm(false);
-                      setCancelled(true);
+                      window.location.reload();
                     } catch (error) {
                       toast.error("Failed to cancel subscription.");
                     }

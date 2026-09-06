@@ -1,6 +1,9 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+import os
+import smtplib
+from email.mime.text import MIMEText
 from pydantic import BaseModel, EmailStr
 
 from src.core.database import get_db
@@ -23,6 +26,9 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
     role: Optional[str] = "sales"
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -147,3 +153,34 @@ def update_me(
         "name": user.name,
         "role": user.role
     }
+
+@router.post("/forgot-password")
+def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == body.email.lower()).first()
+    if not user:
+        # To prevent email enumeration, return success even if user not found
+        return {"message": "If an account exists, you will receive an email."}
+        
+    reset_token = "mock-reset-token-12345"
+    
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
+    smtp_user = os.getenv("SMTP_USERNAME")
+    smtp_pass = os.getenv("SMTP_PASSWORD")
+    mail_from = os.getenv("MAIL_FROM")
+    
+    if smtp_server and smtp_user and smtp_pass:
+        msg = MIMEText(f"Click here to reset your password for DealFlow360: http://localhost:3000/reset-password?token={reset_token}")
+        msg['Subject'] = 'DealFlow360 - Password Reset'
+        msg['From'] = mail_from or smtp_user
+        msg['To'] = user.email
+
+        try:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+        except Exception as e:
+            print(f"Error sending email: {e}")
+            
+    return {"message": "If an account exists, you will receive an email."}

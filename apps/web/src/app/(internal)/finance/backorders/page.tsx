@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useBackorders } from "@/features/operations/hooks";
+import { Backorder } from "@/features/operations/types";
 import {
   PackageX,
   Clock,
@@ -27,112 +29,7 @@ interface WarehouseStock {
   available: number;
 }
 
-interface BackorderItem {
-  id: string;
-  orderId: string;
-  customer: string;
-  product: string;
-  sku: string;
-  ordered: number;
-  shipped: number;
-  pending: number;
-  status: BackorderStatus;
-  orderDate: string;
-  eta: string | null;
-  value: string;
-  warehouses: WarehouseStock[];
-}
 
-const backorders: BackorderItem[] = [
-  {
-    id: "bo-1",
-    orderId: "O-1001",
-    customer: "Acme Corp",
-    product: "Dell Latitude Laptops",
-    sku: "DL-LAT-5540",
-    ordered: 100,
-    shipped: 80,
-    pending: 20,
-    status: "waiting",
-    orderDate: "Sep 1, 2026",
-    eta: "Sep 20, 2026",
-    value: "4,20,000",
-    warehouses: [
-      { name: "Main Warehouse", location: "Mumbai", available: 60 },
-      { name: "East Warehouse", location: "Kolkata", available: 20 },
-    ],
-  },
-  {
-    id: "bo-2",
-    orderId: "O-1008",
-    customer: "Globex Ltd",
-    product: "HP 24 inch Monitors",
-    sku: "HP-MON-24G",
-    ordered: 50,
-    shipped: 40,
-    pending: 10,
-    status: "partial",
-    orderDate: "Sep 2, 2026",
-    eta: "Sep 18, 2026",
-    value: "85,000",
-    warehouses: [
-      { name: "Main Warehouse", location: "Mumbai", available: 30 },
-      { name: "North Warehouse", location: "Delhi", available: 10 },
-    ],
-  },
-  {
-    id: "bo-3",
-    orderId: "O-1015",
-    customer: "Pinnacle Tech",
-    product: "Cisco RV340 Routers",
-    sku: "CS-RV340-K9",
-    ordered: 30,
-    shipped: 0,
-    pending: 30,
-    status: "sourcing",
-    orderDate: "Sep 3, 2026",
-    eta: null,
-    value: "2,10,000",
-    warehouses: [
-      { name: "Main Warehouse", location: "Mumbai", available: 0 },
-      { name: "West Warehouse", location: "Pune", available: 0 },
-    ],
-  },
-  {
-    id: "bo-4",
-    orderId: "O-1019",
-    customer: "Nexus Systems",
-    product: "Logitech MX Keys Keyboards",
-    sku: "LG-MX-KEYS",
-    ordered: 75,
-    shipped: 60,
-    pending: 15,
-    status: "waiting",
-    orderDate: "Sep 4, 2026",
-    eta: "Sep 16, 2026",
-    value: "1,12,500",
-    warehouses: [
-      { name: "South Warehouse", location: "Bangalore", available: 15 },
-    ],
-  },
-  {
-    id: "bo-5",
-    orderId: "O-1022",
-    customer: "Initech",
-    product: "Samsung 4K Smart TVs",
-    sku: "SM-4K-65QN",
-    ordered: 20,
-    shipped: 20,
-    pending: 0,
-    status: "cancelled",
-    orderDate: "Aug 30, 2026",
-    eta: null,
-    value: "6,40,000",
-    warehouses: [
-      { name: "Main Warehouse", location: "Mumbai", available: 5 },
-    ],
-  },
-];
 
 const statusConfig: Record<
   BackorderStatus,
@@ -160,36 +57,7 @@ const statusConfig: Record<
   },
 };
 
-const summaryStats = [
-  {
-    label: "Total Backorders",
-    value: "5",
-    sub: "Active orders",
-    color: "warning",
-    icon: PackageX,
-  },
-  {
-    label: "Units Pending",
-    value: "75",
-    sub: "Across 4 orders",
-    color: "danger",
-    icon: TrendingDown,
-  },
-  {
-    label: "Value at Risk",
-    value: "Rs 8.27L",
-    sub: "Pending revenue",
-    color: "warning",
-    icon: AlertTriangle,
-  },
-  {
-    label: "Avg ETA",
-    value: "~18 days",
-    sub: "To fulfillment",
-    color: "primary",
-    icon: Calendar,
-  },
-];
+
 
 function getBg(c: string) {
   return c === "primary"
@@ -254,23 +122,68 @@ function FulfillmentBar({
 }
 
 export default function BackordersPage() {
-  const [selectedId, setSelectedId] = useState<string>(backorders[0].id);
+  const { data: backorders, isLoading } = useBackorders();
+  const [selectedId, setSelectedId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const selected = backorders.find((b) => b.id === selectedId) || backorders[0];
-  const filtered = backorders.filter((b) => {
+  const computedStats = useMemo(() => {
+    if (!backorders) return [];
+    
+    const active = backorders.filter(b => b.status !== "cancelled");
+    const totalPending = active.reduce((sum, b) => sum + b.pending, 0);
+    const valueRisk = active.reduce((sum, b) => sum + b.valueAtRisk, 0);
+    
+    return [
+      {
+        label: "Total Backorders",
+        value: active.length.toString(),
+        sub: "Active orders",
+        color: "warning",
+        icon: PackageX,
+      },
+      {
+        label: "Units Pending",
+        value: totalPending.toString(),
+        sub: `Across ${active.length} orders`,
+        color: "danger",
+        icon: TrendingDown,
+      },
+      {
+        label: "Value at Risk",
+        value: `Rs ${(valueRisk / 100000).toFixed(2)}L`,
+        sub: "Pending revenue",
+        color: "warning",
+        icon: AlertTriangle,
+      },
+      {
+        label: "Avg ETA",
+        value: "Unknown",
+        sub: "To fulfillment",
+        color: "primary",
+        icon: Calendar,
+      },
+    ];
+  }, [backorders]);
+
+  if (isLoading) {
+    return <div className="p-8 text-[13px] text-foreground-muted">Loading backorders...</div>;
+  }
+
+  const activeBackorders = backorders || [];
+  const selected = activeBackorders.find((b) => b.id === selectedId) || activeBackorders[0];
+  const filtered = activeBackorders.filter((b) => {
     const q = search.toLowerCase();
-    return (
-      (b.orderId.toLowerCase().includes(q) ||
-        b.customer.toLowerCase().includes(q) ||
-        b.product.toLowerCase().includes(q)) &&
-      (filterStatus === "all" || b.status === filterStatus)
-    );
+    const matchSearch =
+      b.orderId.toLowerCase().includes(q) ||
+      b.customer.toLowerCase().includes(q) ||
+      b.product.toLowerCase().includes(q);
+    const matchFilter = filterStatus === "all" || b.status === filterStatus;
+    return matchSearch && matchFilter;
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="p-8 max-w-7xl mx-auto h-full flex flex-col gap-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
@@ -293,7 +206,7 @@ export default function BackordersPage() {
 
       {/* Summary Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        {summaryStats.map((stat) => {
+        {computedStats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div

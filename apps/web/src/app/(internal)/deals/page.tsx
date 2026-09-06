@@ -24,6 +24,7 @@ export default function DealsPage() {
       !searchQuery ||
       deal.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       deal.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (deal.customer?.name && deal.customer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (deal.customer_id && deal.customer_id.toLowerCase().includes(searchQuery.toLowerCase()));
       
     const matchesStatus = statusFilter === "all" || deal.status === statusFilter;

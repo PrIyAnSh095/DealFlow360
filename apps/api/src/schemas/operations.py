@@ -47,3 +47,26 @@ class FulfillmentRecommendationLine(BaseModel):
 class FulfillmentRecommendationResponse(BaseModel):
     order_id: str
     lines: List[FulfillmentRecommendationLine]
+
+class WarehouseStockResponse(BaseModel):
+    name: str
+    location: str
+    available: int
+
+class BackorderResponse(BaseModel):
+    id: str
+    orderId: str
+    customer: str
+    product: str
+    sku: str
+    ordered: int
+    shipped: int
+    pending: int
+    status: str
+    orderDate: str
+    eta: Optional[str] = None
+    valueAtRisk: float
+    warehouses: List[WarehouseStockResponse]
+
+    class Config:
+        from_attributes = True

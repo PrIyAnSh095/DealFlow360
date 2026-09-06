@@ -9,11 +9,11 @@ from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
 from src.models.user import User
-from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation
+from src.models.operations import Warehouse, Stock, Order, FulfillmentAllocation, Backorder
 from src.schemas.operations import (
     OrderResponse, WarehouseResponse, WarehouseCreate, WarehouseUpdate,
     FulfillmentRecommendationResponse, FulfillmentRecommendationLine, 
-    FulfillmentAllocationInput, FulfillmentRequest
+    FulfillmentAllocationInput, FulfillmentRequest, BackorderResponse, WarehouseStockResponse
 )
 from src.services.fulfillment_service import generate_fulfillment_plans, apply_fulfillment_plan
 from src.services.shipping_service import shipping_service
@@ -233,3 +233,66 @@ def process_fulfillment(order_id: str, payload: FulfillmentRequest, db: Session 
     order.status = "fulfilled"
     db.commit()
     return {"message": "Fulfillment processed successfully"}
+
+@router.get("/backorders", response_model=List[BackorderResponse])
+def get_backorders(db: Session = Depends(get_db)):
+    backorders = db.query(Backorder).filter(Backorder.status != "FULFILLED").all()
+    resp = []
+    
+    for b in backorders:
+        order = db.query(Order).filter(Order.id == b.order_id).first()
+        product = db.query(Product).filter(Product.id == b.product_id).first()
+        quote = db.query(Quotation).filter(Quotation.id == order.quotation_id).first() if order else None
+        deal = db.query(Deal).filter(Deal.id == quote.deal_id).first() if quote else None
+        
+        cust_name = "Unknown"
+        if deal:
+            if hasattr(deal, 'customer_name') and deal.customer_name:
+                cust_name = deal.customer_name
+            elif hasattr(deal, 'customer') and deal.customer:
+                cust_name = deal.customer.name
+                
+        # Get warehouse stock info for this product
+        stocks = db.query(Stock).filter(Stock.product_id == b.product_id).all()
+        wh_stock_list = []
+        for s in stocks:
+            wh = db.query(Warehouse).filter(Warehouse.id == s.warehouse_id).first()
+            if wh:
+                wh_stock_list.append(WarehouseStockResponse(
+                    name=wh.name,
+                    location=wh.location,
+                    available=max(0, s.quantity_on_hand - s.quantity_allocated)
+                ))
+        
+        # Calculate value at risk
+        val = 0.0
+        if product:
+            val = float(product.sales_price) * b.quantity
+            
+        # Shipped vs Pending
+        # For simplicity, ordered = shipped + pending. We assume pending = b.quantity
+        pending = b.quantity
+        ordered = pending # if we wanted real ordered, we'd look at quote line. Let's simplify
+        shipped = 0
+        
+        quote_line = db.query(QuoteLine).filter(QuoteLine.quotation_id == quote.id, QuoteLine.product_id == b.product_id).first() if quote else None
+        if quote_line:
+            ordered = quote_line.quantity
+            shipped = ordered - pending
+
+        resp.append(BackorderResponse(
+            id=b.id,
+            orderId=b.order_id,
+            customer=cust_name,
+            product=product.name if product else "Unknown",
+            sku=product.sku if product else "UNK",
+            ordered=ordered,
+            shipped=shipped,
+            pending=pending,
+            status="waiting" if b.status == "PENDING" else b.status.lower(),
+            orderDate=b.created_at.isoformat() if b.created_at else "",
+            eta=None,
+            valueAtRisk=val,
+            warehouses=wh_stock_list
+        ))
+    return resp

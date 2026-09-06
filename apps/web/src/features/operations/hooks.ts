@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchWarehouses, fetchPendingOrders, fetchFulfillmentRecommendation, submitFulfillment } from "./api";
-import { FulfillmentAllocationInput, Warehouse, Order, FulfillmentRecommendationResponse } from "./types";
+import { fetchWarehouses, fetchPendingOrders, fetchFulfillmentRecommendation, submitFulfillment, fetchBackorders } from "./api";
+import { FulfillmentAllocationInput, Warehouse, Order, FulfillmentRecommendationResponse, Backorder } from "./types";
 
 export function useWarehouses() {
   return useQuery<Warehouse[]>({
@@ -33,5 +33,12 @@ export function useSubmitFulfillment() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", "pending"] });
     }
+  });
+}
+
+export function useBackorders() {
+  return useQuery<Backorder[]>({
+    queryKey: ["backorders"],
+    queryFn: fetchBackorders
   });
 }

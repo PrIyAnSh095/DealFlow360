@@ -12,6 +12,7 @@ from src.models.deal import Deal
 from src.models.customer import Customer
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
+from src.models.admin import GlobalSetting
 from src.models.billing import Invoice, InvoiceLine, Payment, Subscription
 from src.schemas.billing import (
     InvoiceResponse, PaymentCreate, PaymentResponse,
@@ -53,6 +54,11 @@ def generate_invoice(order_id: str, db: Session = Depends(get_db), current_user:
     if existing:
         return existing
         
+    # Get tax rate
+    tax_setting = db.query(GlobalSetting).filter(GlobalSetting.key == "tax_rate").first()
+    tax_rate = Decimal(tax_setting.value) / Decimal('100.0') if tax_setting else Decimal('0.10')
+    tax_amount = quote.subtotal * tax_rate
+    
     # Create Invoice
     invoice = Invoice(
         order_id=order_id,
@@ -61,8 +67,8 @@ def generate_invoice(order_id: str, db: Session = Depends(get_db), current_user:
         payment_status="unpaid",
         subtotal=quote.subtotal,
         total_discount=quote.total_discount,
-        tax=Decimal('0.00'), # Mock tax
-        total=quote.total,
+        tax=tax_amount,
+        total=quote.subtotal - quote.total_discount + tax_amount,
         due_date=datetime.now() + timedelta(days=30)
     )
     db.add(invoice)
@@ -179,7 +185,7 @@ def modify_subscription(sub_id: str, payload: SubscriptionActionRequest, db: Ses
         now = datetime.now(sub.current_period_end.tzinfo) if sub.current_period_end.tzinfo else datetime.now()
         if sub.current_period_end and sub.current_period_end > now:
             days_remaining = (sub.current_period_end - now).days
-            total_days_in_month = 30 # Simplified
+            total_days_in_month = calendar.monthrange(now.year, now.month)[1]
             
             qty_delta = new_qty - old_qty
             prorated_amount = (sub.price_per_period / total_days_in_month) * days_remaining * qty_delta

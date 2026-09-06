@@ -37,8 +37,9 @@ export default function AnalyticsPage() {
           <div className="text-3xl font-bold text-foreground">
             ${(overview.total_revenue / 1000).toFixed(1)}k
           </div>
-          <div className="text-[11px] text-success font-medium mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> +12.5% vs last month
+          <div className={`text-[11px] font-medium mt-1 flex items-center gap-1 ${overview.mom_revenue >= 0 ? 'text-success' : 'text-danger'}`}>
+            {overview.mom_revenue >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {overview.mom_revenue > 0 ? '+' : ''}{overview.mom_revenue.toFixed(1)}% vs last month
           </div>
         </div>
         
@@ -49,8 +50,9 @@ export default function AnalyticsPage() {
           <div className="text-3xl font-bold text-foreground">
             {overview.win_rate.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-success font-medium mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> +2.1% vs last month
+          <div className={`text-[11px] font-medium mt-1 flex items-center gap-1 ${overview.mom_win_rate >= 0 ? 'text-success' : 'text-danger'}`}>
+            {overview.mom_win_rate >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {overview.mom_win_rate > 0 ? '+' : ''}{overview.mom_win_rate.toFixed(1)}% vs last month
           </div>
         </div>
 
@@ -61,8 +63,9 @@ export default function AnalyticsPage() {
           <div className="text-3xl font-bold text-foreground">
             {overview.avg_cycle_time_days.toFixed(1)} <span className="text-lg font-medium text-foreground-muted">days</span>
           </div>
-          <div className="text-[11px] text-success font-medium mt-1 flex items-center gap-1">
-            <TrendingDown className="w-3 h-3" /> -4.2 days vs last month
+          <div className={`text-[11px] font-medium mt-1 flex items-center gap-1 ${overview.mom_cycle_time <= 0 ? 'text-success' : 'text-danger'}`}>
+            {overview.mom_cycle_time <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+            {overview.mom_cycle_time > 0 ? '+' : ''}{overview.mom_cycle_time.toFixed(1)} days vs last month
           </div>
         </div>
 
@@ -73,8 +76,9 @@ export default function AnalyticsPage() {
           <div className="text-3xl font-bold text-foreground">
             {overview.avg_discount.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-danger font-medium mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" /> +0.5% vs last month
+          <div className={`text-[11px] font-medium mt-1 flex items-center gap-1 ${overview.mom_discount <= 0 ? 'text-success' : 'text-danger'}`}>
+            {overview.mom_discount <= 0 ? <TrendingDown className="w-3 h-3" /> : <TrendingUp className="w-3 h-3" />}
+            {overview.mom_discount > 0 ? '+' : ''}{overview.mom_discount.toFixed(1)}% vs last month
           </div>
         </div>
         

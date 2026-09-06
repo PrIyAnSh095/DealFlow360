@@ -20,6 +20,10 @@ class AnalyticsOverview(BaseModel):
     avg_cycle_time_days: float
     avg_discount: float
     active_deals: int
+    mom_revenue: float
+    mom_win_rate: float
+    mom_cycle_time: float
+    mom_discount: float
 
 class TrendPoint(BaseModel):
     label: str
@@ -104,6 +108,49 @@ def get_analytics(db: Session = Depends(get_db), current_user: User = Depends(Ro
             label=month_start.strftime("%b"),
             value=float((month_discount / month_subtotal) * 100) if month_subtotal else 0.0,
         ))
+
+    mom_revenue = 0.0
+    mom_discount = 0.0
+    if len(revenue_trend) >= 2:
+        curr = revenue_trend[-1].value
+        prev = revenue_trend[-2].value
+        if prev > 0:
+            mom_revenue = ((curr - prev) / prev) * 100
+        elif curr > 0:
+            mom_revenue = 100.0
+
+    if len(discount_trend) >= 2:
+        curr = discount_trend[-1].value
+        prev = discount_trend[-2].value
+        if prev > 0:
+            mom_discount = curr - prev # absolute change
+
+    # Calculate MoM win rate & cycle time dynamically
+    prev_month_start = month_starts[-2] if len(month_starts) >= 2 else month_starts[0]
+    curr_month_start = month_starts[-1] if len(month_starts) >= 1 else now
+    
+    prev_deals = db.query(Deal).filter(Deal.created_at >= prev_month_start, Deal.created_at < curr_month_start).all()
+    curr_deals = db.query(Deal).filter(Deal.created_at >= curr_month_start).all()
+    
+    prev_won = sum(1 for d in prev_deals if d.status == "won")
+    curr_won = sum(1 for d in curr_deals if d.status == "won")
+    
+    prev_win_rate = (prev_won / len(prev_deals)) * 100 if len(prev_deals) > 0 else 0.0
+    curr_win_rate = (curr_won / len(curr_deals)) * 100 if len(curr_deals) > 0 else 0.0
+    mom_win_rate = curr_win_rate - prev_win_rate
+    
+    prev_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400 for d in prev_deals if d.status == "won" and d.updated_at]
+    curr_cycle_ages = [(as_utc(d.updated_at) - as_utc(d.created_at)).total_seconds() / 86400 for d in curr_deals if d.status == "won" and d.updated_at]
+    
+    prev_cycle_time = sum(prev_cycle_ages) / len(prev_cycle_ages) if prev_cycle_ages else 0.0
+    curr_cycle_time = sum(curr_cycle_ages) / len(curr_cycle_ages) if curr_cycle_ages else 0.0
+    mom_cycle_time = curr_cycle_time - prev_cycle_time
+    
+    # Overriding overview with MoM
+    overview.mom_revenue = mom_revenue
+    overview.mom_win_rate = mom_win_rate
+    overview.mom_cycle_time = mom_cycle_time
+    overview.mom_discount = mom_discount
     
     return AnalyticsDashboard(
         overview=overview,

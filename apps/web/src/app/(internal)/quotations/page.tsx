@@ -31,7 +31,8 @@ export default function QuotationsPage() {
       !searchQuery ||
       quote.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       quote.deal_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      quote.status.toLowerCase().includes(searchQuery.toLowerCase());
+      quote.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (quote.customer_name && quote.customer_name.toLowerCase().includes(searchQuery.toLowerCase()));
       
     const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
     return matchesSearch && matchesStatus;

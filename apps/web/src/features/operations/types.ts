@@ -32,3 +32,25 @@ export interface FulfillmentRecommendationResponse {
   order_id: string;
   lines: FulfillmentRecommendationLine[];
 }
+
+export interface WarehouseStock {
+  name: string;
+  location: string;
+  available: number;
+}
+
+export interface Backorder {
+  id: string;
+  orderId: string;
+  customer: string;
+  product: string;
+  sku: string;
+  ordered: number;
+  shipped: number;
+  pending: number;
+  status: "waiting" | "partial" | "sourcing" | "cancelled";
+  orderDate: string;
+  eta: string | null;
+  valueAtRisk: number;
+  warehouses: WarehouseStock[];
+}

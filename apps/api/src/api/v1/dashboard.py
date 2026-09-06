@@ -62,9 +62,24 @@ def get_dashboard_metrics(
             pending_approvals += 1
             pending_approval_value += deal.value
             
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+    sixty_days_ago = datetime.now() - timedelta(days=60)
+    
+    current_period_deals = db.query(Deal).filter(Deal.created_at >= thirty_days_ago).all()
+    previous_period_deals = db.query(Deal).filter(Deal.created_at >= sixty_days_ago, Deal.created_at < thirty_days_ago).all()
+    
+    current_revenue = sum([d.value for d in current_period_deals if d.status not in ["completed", "lost"]])
+    prev_revenue = sum([d.value for d in previous_period_deals if d.status not in ["completed", "lost"]])
+    
+    growth = 0.0
+    if prev_revenue > 0:
+        growth = float(((current_revenue - prev_revenue) / prev_revenue) * 100)
+    elif current_revenue > 0:
+        growth = 100.0
+
     response = DashboardMetrics(
         revenue_pipeline=revenue_pipeline,
-        pipeline_growth_percent=12.0, # Mock growth for now
+        pipeline_growth_percent=round(growth, 1),
         deals_at_risk=deals_at_risk,
         pending_approvals=pending_approvals,
         pending_approval_value=pending_approval_value,
@@ -91,12 +106,17 @@ def get_recent_activities(
     # Get last 5 deals created
     recent_deals = db.query(Deal).order_by(Deal.created_at.desc()).limit(5).all()
     for deal in recent_deals:
+        # Fetch user who owns the deal
+        owner = db.query(User).filter(User.id == deal.owner_id).first() if hasattr(deal, 'owner_id') else None
+        actor_name = owner.name if owner else "System"
+        initials = "".join([n[0] for n in actor_name.split()[:2]]) if owner else "SYS"
+
         activities.append(ActivityLog(
             id=f"deal-{deal.id}",
-            action_by="System",
-            initials="SYS",
+            action_by=actor_name,
+            initials=initials,
             action_type="created deal",
-            target_name=f"Deal {deal.id[:8]}",
+            target_name=deal.name if hasattr(deal, 'name') else f"Deal {deal.id[:8]}",
             timestamp=deal.created_at.isoformat(),
             color_hint="primary"
         ))

@@ -59,6 +59,12 @@ export default function DashboardPage() {
     return <div className="p-8 text-[13px] text-foreground-muted flex items-center justify-center h-full">Loading dashboard...</div>;
   }
 
+  const openDeals = metrics?.open_deals || 0;
+  const atRisk = metrics?.deals_at_risk || 0;
+  const healthy = Math.max(0, openDeals - atRisk);
+  const healthyPct = openDeals > 0 ? (healthy / openDeals) * 100 : 0;
+  const riskPct = openDeals > 0 ? (atRisk / openDeals) * 100 : 0;
+
   return (
     <div className="flex flex-col gap-6">
       
@@ -241,19 +247,19 @@ export default function DashboardPage() {
               <div>
                 <div className="flex justify-between text-[13px] mb-1.5">
                   <span className="font-medium flex items-center gap-1.5 text-foreground"><CheckCircle2 className="w-4 h-4 text-success" /> Healthy Deals</span>
-                  <span className="text-foreground-muted">{(metrics?.open_deals || 0) - (metrics?.deals_at_risk || 0)} deals</span>
+                  <span className="text-foreground-muted">{healthy} deals</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-success h-2 rounded-full" style={{ width: '85%' }}></div>
+                  <div className="bg-success h-2 rounded-full transition-all duration-500" style={{ width: `${healthyPct}%` }}></div>
                 </div>
               </div>
               <div>
                 <div className="flex justify-between text-[13px] mb-1.5">
                   <span className="font-medium flex items-center gap-1.5 text-foreground"><AlertTriangle className="w-4 h-4 text-danger" /> Critical Risk</span>
-                  <span className="text-foreground-muted">{metrics?.deals_at_risk || 0} deals</span>
+                  <span className="text-foreground-muted">{atRisk} deals</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-2">
-                  <div className="bg-danger h-2 rounded-full" style={{ width: '15%' }}></div>
+                  <div className="bg-danger h-2 rounded-full transition-all duration-500" style={{ width: `${riskPct}%` }}></div>
                 </div>
               </div>
             </div>

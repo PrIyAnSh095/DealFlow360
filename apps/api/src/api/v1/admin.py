@@ -5,14 +5,15 @@ from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.api.deps import RoleChecker
 from src.models.product import Product
-from src.models.pricing import Category, PriceList, DiscountPolicy, ApprovalRule
+from src.models.pricing import PriceList
 from src.models.customer import CustomerTier, Customer
 from src.models.operations import Warehouse
 from src.models.user import User
 from src.models.audit import AuditEvent, AuditLog
 from src.models.ai_config import CompanyAIConfig
 from src.models.admin import (
-    PricingRule, SubscriptionPlan, GlobalSetting, ApprovalChain
+    PricingRule, SubscriptionPlan, GlobalSetting, ApprovalChain,
+    Category, DiscountPolicy, ApprovalRule
 )
 from src.schemas.admin import (
     PricingRuleCreate, PricingRuleUpdate, PricingRuleResponse,

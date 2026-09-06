@@ -118,18 +118,22 @@ export default function QuotationsPage() {
                   </tr>
                 ) : (
                   filteredQuotations.map((quote) => {
-                    const isHighRisk = quote.risk_score === 'HIGH';
-                    const isMedRisk = quote.risk_score === 'MEDIUM';
+                    const isHighRisk = (quote.risk_score || "").toUpperCase() === 'HIGH';
+                    const isMedRisk = (quote.risk_score || "").toUpperCase() === 'MEDIUM';
+                    const quoteIdStr = (quote.id || "").slice(0, 6);
+                    const dealIdStr = (quote.deal_id || "").slice(0, 6);
+                    const totalVal = ((Number(quote.total) || 0) / 1000).toFixed(1);
+                    const marginVal = (Number(quote.margin_percentage) || 0).toFixed(1);
                     
                     return (
-                      <tr key={quote.id} className="hover:bg-muted/50 transition-colors">
-                        <td className="px-5 py-3 font-medium text-foreground">QT-{quote.id.slice(0, 6)}</td>
-                        <td className="px-5 py-3 text-foreground-muted">Deal {quote.deal_id.slice(0, 6)}</td>
+                      <tr key={quote.id || Math.random().toString()} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-foreground">QT-{quoteIdStr}</td>
+                        <td className="px-5 py-3 text-foreground-muted">Deal {dealIdStr}</td>
                         <td className="px-5 py-3 text-right font-medium text-foreground">
-                          ₹{(quote.total / 1000).toFixed(1)}k
+                          ₹{totalVal}k
                         </td>
                         <td className="px-5 py-3 text-right font-medium">
-                          {Number(quote.margin_percentage).toFixed(1)}%
+                          {marginVal}%
                         </td>
                         <td className="px-5 py-3 text-center">
                           <span className={cn(
@@ -138,14 +142,14 @@ export default function QuotationsPage() {
                             isMedRisk ? "bg-warning/10 text-warning border-warning/20" : 
                             "bg-success/10 text-success border-success/20"
                           )}>
-                            {quote.risk_score === 'HIGH' ? 'High' : quote.risk_score === 'MEDIUM' ? 'Med' : 'Low'}
+                            {isHighRisk ? 'High' : isMedRisk ? 'Med' : 'Low'}
                           </span>
                         </td>
                         <td className="px-5 py-3 text-foreground-muted capitalize">
-                          {quote.status}
+                          {quote.status || 'draft'}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          <Link href={`/deals/${quote.deal_id}`} className="text-primary font-medium hover:underline">
+                          <Link href={`/deals/${quote.deal_id || ''}`} className="text-primary font-medium hover:underline">
                             Open
                           </Link>
                         </td>

@@ -13,8 +13,13 @@ export const quotationsApi = {
   },
 
   getQuotations: async (): Promise<QuotationResponse[]> => {
-    const response = await apiClient.get<QuotationResponse[]>('/quotations');
-    return response.data;
+    try {
+      const response = await apiClient.get<QuotationResponse[]>('/quotations');
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to fetch quotations:', error);
+      return [];
+    }
   },
 
   createQuotation: async (request: QuotationCreate): Promise<QuotationResponse> => {

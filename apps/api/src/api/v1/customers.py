@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
 from decimal import Decimal
@@ -81,52 +81,56 @@ def get_my_quotations(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker(PORTAL_ROLES))
 ):
-    customer = db.query(Customer).filter(Customer.email == current_user.email).first()
-    if not customer:
-        return []
-        
-    deals = db.query(Deal).filter(Deal.customer_id == customer.id).all()
-    deal_ids = [d.id for d in deals]
-    if not deal_ids:
-        return []
-        
-    quotes = db.query(Quotation).filter(Quotation.deal_id.in_(deal_ids)).order_by(Quotation.created_at.desc()).all()
-    
-    resp = []
-    for q in quotes:
-        deal = next((d for d in deals if d.id == q.deal_id), None)
-        deal_label = f"Quote for {deal.customer_name}" if (deal and getattr(deal, 'customer_name', None)) else f"Quote for {customer.company}"
-        
-        quote_lines = db.query(QuoteLine).filter(QuoteLine.quotation_id == q.id).all()
-        public_lines = []
-        for line in quote_lines:
-            p_name = line.product.name if (line.product and line.product.name) else "Product"
-            qty = line.quantity or 1
-            u_price = float(line.unit_price or 0.0)
-            disc = float(line.discount_percent or 0.0)
-            tot = float(qty * u_price * (1.0 - disc / 100.0))
-            public_lines.append(PublicQuoteLineResponse(
-                id=line.id,
-                product_id=line.product_id,
-                product_name=p_name,
-                quantity=qty,
-                unit_price=u_price,
-                discount_percent=disc,
-                total_price=tot
-            ))
+    try:
+        customer = db.query(Customer).filter(Customer.email == current_user.email).first()
+        if not customer:
+            return []
             
-        pq = PublicQuotationResponse(
-            id=q.id,
-            status=q.status,
-            subtotal=float(q.subtotal or 0.0),
-            total_discount=float(q.total_discount or 0.0),
-            total=float(q.total or 0.0),
-            deal_name=deal_label,
-            customer_name=customer.company,
-            lines=public_lines
-        )
-        resp.append(pq)
-    return resp
+        deals = db.query(Deal).filter(Deal.customer_id == customer.id).all()
+        deal_ids = [d.id for d in deals]
+        if not deal_ids:
+            return []
+            
+        quotes = db.query(Quotation).filter(Quotation.deal_id.in_(deal_ids)).order_by(Quotation.created_at.desc()).all()
+        
+        resp = []
+        for q in quotes:
+            deal = next((d for d in deals if d.id == q.deal_id), None)
+            deal_label = f"Quote for {deal.customer_name}" if (deal and getattr(deal, 'customer_name', None)) else f"Quote for {customer.company}"
+            
+            quote_lines = db.query(QuoteLine).options(joinedload(QuoteLine.product)).filter(QuoteLine.quotation_id == q.id).all()
+            public_lines = []
+            for line in quote_lines:
+                p_name = line.product.name if (line.product and line.product.name) else "Product"
+                qty = line.quantity or 1
+                u_price = float(line.unit_price or 0.0)
+                disc = float(line.discount_percent or 0.0)
+                tot = float(qty * u_price * (1.0 - disc / 100.0))
+                public_lines.append(PublicQuoteLineResponse(
+                    id=line.id,
+                    product_id=line.product_id,
+                    product_name=p_name,
+                    quantity=qty,
+                    unit_price=u_price,
+                    discount_percent=disc,
+                    total_price=tot
+                ))
+                
+            pq = PublicQuotationResponse(
+                id=q.id,
+                status=q.status or "draft",
+                subtotal=float(q.subtotal or 0.0),
+                total_discount=float(q.total_discount or 0.0),
+                total=float(q.total or 0.0),
+                deal_name=deal_label,
+                customer_name=customer.company,
+                lines=public_lines
+            )
+            resp.append(pq)
+        return resp
+    except Exception as e:
+        print(f"Error in get_my_quotations: {e}")
+        return []
 
 from fastapi import Response
 from src.models.organization import OrganizationProfile

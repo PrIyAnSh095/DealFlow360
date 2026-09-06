@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 
 from src.core.database import get_db
 from src.core.security import get_current_user
+from src.models.user import User
 from src.models.quotation import Quotation, QuoteLine
 from src.models.product import Product
 from src.models.deal import Deal
@@ -32,24 +33,35 @@ class QuoteRecalculateRequest(BaseModel):
 @router.get("")
 @router.get("/")
 def list_quotations(db: Session = Depends(get_db)):
-    quotes = db.query(Quotation).all()
-    results = []
-    for q in quotes:
-        deal = db.query(Deal).filter(Deal.id == q.deal_id).first()
-        results.append({
-            "id": q.id,
-            "deal_id": q.deal_id,
-            "customer_name": deal.customer_name if (deal and hasattr(deal, 'customer_name')) else "Unknown",
-            "status": q.status,
-            "subtotal": q.subtotal,
-            "total_discount": q.total_discount,
-            "total": q.total,
-            "margin_percentage": q.margin_percentage,
-            "risk_score": q.risk_score,
-            "requires_approval": q.requires_approval,
-            "created_at": q.created_at
-        })
-    return results
+    try:
+        quotes = db.query(Quotation).options(joinedload(Quotation.deal)).all()
+        results = []
+        for q in quotes:
+            deal = q.deal if hasattr(q, 'deal') and q.deal else db.query(Deal).filter(Deal.id == q.deal_id).first()
+            customer_name = "Unknown"
+            if deal:
+                if hasattr(deal, 'customer_name') and deal.customer_name:
+                    customer_name = deal.customer_name
+                elif hasattr(deal, 'customer') and deal.customer and hasattr(deal.customer, 'company'):
+                    customer_name = deal.customer.company
+
+            results.append({
+                "id": q.id,
+                "deal_id": q.deal_id,
+                "customer_name": customer_name,
+                "status": q.status or "draft",
+                "subtotal": float(q.subtotal or 0.0),
+                "total_discount": float(q.total_discount or 0.0),
+                "total": float(q.total or 0.0),
+                "margin_percentage": float(q.margin_percentage or 0.0),
+                "risk_score": q.risk_score or "LOW",
+                "requires_approval": bool(q.requires_approval),
+                "created_at": q.created_at
+            })
+        return results
+    except Exception as e:
+        print(f"Error in list_quotations: {e}")
+        return []
 
 @router.get("/{quotation_id}")
 def get_quotation(quotation_id: str, db: Session = Depends(get_db)):
